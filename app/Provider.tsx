@@ -22,9 +22,8 @@ function Provider({children}: any) {
         imageUrl:user?.imageUrl??'',
         name:user?.fullName??''
       });
-      console.log(result);
       setUserDetails(result);
-      console.log(userDetails);
+     
     }
   }
   

@@ -25,11 +25,13 @@ export async function POST(req: NextRequest) {
             // console.log("Received conversation:", conversation);
             
             try {
-                const ress = await axios.post("https://dev-56.app.n8n.cloud/webhook/interview-mockk", {
+                const ress = await axios.post("https://dev-58.app.n8n.cloud/webhook/interview-mockk", {
                     conversation: conversation
                 });
                 // console.log("Full n8n response:", ress.data);
                 // console.log("Response structure:", JSON.stringify(ress.data, null, 2));
+
+                
                 
              
                 let responseData;
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
         const hasBronzePlan = has({ plan: 'pro' })
 
         // @ts-ignore
-        if (decision?.reason?.remaining == 0 && hasBronzePlan) {
+        if (decision?.reason?.remaining == 0) {
             return NextResponse.json({
                 status: 429,
                 result: "No free credits left. Please upgrade your plan to continue using our services."
@@ -111,10 +113,12 @@ export async function POST(req: NextRequest) {
                 isPublished: true
             });
 
-            const result = await axios.post('https://dev-56.app.n8n.cloud/webhook/generate-ai-interview', {
+            const result = await axios.post('https://dev-58.app.n8n.cloud/webhook/generate-ai-interview', {
                 resumeUrl: uploadPdf?.url
             })
             // console.log(result.data?.output?.interview_questions);
+
+          
 
 
             // console.log('Upload successful:', uploadPdf.url);
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
                 resumeUrl: uploadPdf?.url
             });
         } else {
-            const result = await axios.post('https://dev-56.app.n8n.cloud/webhook/generate-ai-interview', {
+            const result = await axios.post('https://dev-58.app.n8n.cloud/webhook/generate-ai-interview', {
                 resumeUrl: null,
                 jobTitle: jobTitle,
                 jobDescription: jobDescription

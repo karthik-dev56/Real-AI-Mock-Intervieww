@@ -4,7 +4,7 @@ import axios from 'axios';
 export async function POST(req: NextRequest) {
     try {
         const {email,interviewLink} = await req.json();
-        const result  = await axios.post("https://dev-56.app.n8n.cloud/webhook/mail-send",{
+        const result  = await axios.post("https://dev-58.app.n8n.cloud/webhook/mail-send",{
             email: email,
             interviewLink: interviewLink
         })
@@ -14,3 +14,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({message: "Error sending mail", status:500})
     }
 }
+
