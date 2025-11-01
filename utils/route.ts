@@ -9,7 +9,7 @@ export const aj = arcjet({
       characteristics: ["userId"], 
       refillRate: 2, 
       interval: 86400, 
-      capacity: 5, 
+      capacity: 3, 
     }),
   ],
 });
