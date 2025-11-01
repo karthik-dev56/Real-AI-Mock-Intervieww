@@ -57,7 +57,7 @@ function CreateInterviewDialog() {
             const res = await axios.post('api/generate-ai-questions',formData);
             console.log(res.data)
             if(res.data.status==429){
-                toast.warning("You have exceeded your rate limit. Please try again later.");
+                toast.warning("You have exceeded your rate limit. Please try again after 24hrs.");
                 return
             }
             const resp = await saveInterviewQuestions({
