@@ -318,9 +318,14 @@ Key Guidelines:
                 console.log("Extracted response data:", responseData);
                 
             
-                const outputData = responseData.output || responseData;
+                let outputData = responseData.output || responseData;
                 console.log("Output data:", outputData);
                 
+                // Check if the data is wrapped in "Interview Analysis Report"
+                if (outputData['Interview Analysis Report']) {
+                    outputData = outputData['Interview Analysis Report'];
+                    console.log("Unwrapped Interview Analysis Report:", outputData);
+                }
         
                 const reportData = outputData.interview_analysis_report || outputData;
                 console.log("Report data:", reportData);
