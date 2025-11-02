@@ -451,6 +451,7 @@ Key Guidelines:
                 const reportData = outputData.interview_analysis_report || outputData;
                 console.log("Report data:", reportData);
                
+                // Normalize snake_case field names
                 if (reportData.final_score !== undefined && reportData.finalScore === undefined) {
                     reportData.finalScore = reportData.final_score;
                 }
@@ -460,14 +461,39 @@ Key Guidelines:
                 if (reportData.reason_for_deduction && !reportData.reasonForDeduction) {
                     reportData.reasonForDeduction = reportData.reason_for_deduction;
                 }
+                if (reportData.question_wise_justification && !reportData.questionWiseJustification) {
+                    reportData.questionWiseJustification = reportData.question_wise_justification;
+                }
                 
+                // Handle nested overall_evaluation object
+                if (reportData.overall_evaluation && typeof reportData.overall_evaluation === 'object') {
+                    const evalObj = reportData.overall_evaluation;
+                    
+                    // Extract strengths from nested object
+                    if (evalObj.strengths && !reportData.strengths) {
+                        reportData.strengths = evalObj.strengths;
+                    }
+                    
+                    // Handle weaknesses_improvement_areas
+                    if (evalObj.weaknesses_improvement_areas && !reportData.weaknesses) {
+                        reportData.weaknesses = evalObj.weaknesses_improvement_areas;
+                    }
+                }
                 
+                // Convert arrays to comma-separated strings
                 if (Array.isArray(reportData.strengths)) {
-                    reportData.strengths = reportData.strengths.join(', ');
+                    reportData.strengths = reportData.strengths.length > 0 
+                        ? reportData.strengths.join(', ') 
+                        : 'Not available';
                 }
                 if (Array.isArray(reportData.weaknesses)) {
-                    reportData.weaknesses = reportData.weaknesses.join(', ');
+                    reportData.weaknesses = reportData.weaknesses.length > 0 
+                        ? reportData.weaknesses.join(', ') 
+                        : 'Not available';
                 }
+                
+                console.log("After array conversion - strengths:", reportData.strengths);
+                console.log("After array conversion - weaknesses:", reportData.weaknesses);
                 
                 
                 if (reportData['3. Final Score'] && typeof reportData['3. Final Score'] === 'object') {
@@ -514,8 +540,8 @@ Key Guidelines:
                     console.log("=== EXTRACTING DATA ===");
                     console.log("reportData.finalScore:", reportData.finalScore);
                     console.log("reportData.questionWiseJustification:", reportData.questionWiseJustification);
-                    console.log("reportData.strengths:", reportData.strengths);
-                    console.log("reportData.weaknesses:", reportData.weaknesses);
+                    console.log("reportData.strengths:", reportData.strengths, "Type:", typeof reportData.strengths, "IsArray:", Array.isArray(reportData.strengths));
+                    console.log("reportData.weaknesses:", reportData.weaknesses, "Type:", typeof reportData.weaknesses, "IsArray:", Array.isArray(reportData.weaknesses));
                     
                     
                     if (reportData.finalScore !== undefined) {
@@ -532,19 +558,28 @@ Key Guidelines:
                         }
                         console.log("Parsed finalScore:", finalScore);
                         
-                        const strengthsData = reportData.strengths || "Not available";
-                        const strengthsString = typeof strengthsData === 'string' 
-                            ? strengthsData 
-                            : Array.isArray(strengthsData) 
-                                ? strengthsData.join(', ') 
-                                : String(strengthsData);
+                        const strengthsData = reportData.strengths;
+                        let strengthsString = "Not available";
+                        if (strengthsData) {
+                            if (typeof strengthsData === 'string') {
+                                strengthsString = strengthsData.trim() || "Not available";
+                            } else if (Array.isArray(strengthsData) && strengthsData.length > 0) {
+                                strengthsString = strengthsData.join(', ');
+                            }
+                        }
                         
-                        const weaknessesData = reportData.weaknesses || "Not available";
-                        const weaknessesString = typeof weaknessesData === 'string'
-                            ? weaknessesData
-                            : Array.isArray(weaknessesData) 
-                                ? weaknessesData.join(', ') 
-                                : String(weaknessesData);
+                        const weaknessesData = reportData.weaknesses;
+                        let weaknessesString = "Not available";
+                        if (weaknessesData) {
+                            if (typeof weaknessesData === 'string') {
+                                weaknessesString = weaknessesData.trim() || "Not available";
+                            } else if (Array.isArray(weaknessesData) && weaknessesData.length > 0) {
+                                weaknessesString = weaknessesData.join(', ');
+                            }
+                        }
+                        
+                        console.log("Final strengthsString:", strengthsString);
+                        console.log("Final weaknessesString:", weaknessesString);
                       
                         const overallEval = reportData.questionWiseJustification || 
                                           reportData.overallPerformance || 

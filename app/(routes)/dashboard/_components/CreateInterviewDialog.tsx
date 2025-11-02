@@ -48,19 +48,21 @@ function CreateInterviewDialog() {
     
     const hasFile = !!file;
     const hasJobDetails = formdata?.jobTitle?.trim() && formdata?.jobDescription?.trim();
-    const isFormValid = (hasFile || hasJobDetails);
+    
+    // Only enable form if user details are fully loaded
+    const userReady = userDetails?._id && !userLoading;
+    const isFormValid = (hasFile || hasJobDetails) && userReady;
 
 
     const onSubmit=async()=> {
-     
-        setLoading(true);
-
-        
-        if (userLoading || !userDetails?._id) {
-            toast.error("Please wait while we load your profile, then try again.");
-            setLoading(false);
+        // Prevent submission if user details aren't ready
+        if (!userDetails?._id) {
+            console.error('Submit blocked - userDetails not ready:', { userDetails, userLoading });
+            toast.error("User profile not loaded. Please wait a moment and try again.");
             return;
         }
+     
+        setLoading(true);
 
         const formData = new FormData();
         formData.append('file',file || '');
@@ -113,9 +115,9 @@ function CreateInterviewDialog() {
                     <DialogClose>
                         <Button variant="ghost">Cancel</Button>
                     </DialogClose>
-                    <Button onClick={onSubmit} disabled={loading || !isFormValid || userLoading}>
+                    <Button onClick={onSubmit} disabled={loading || !isFormValid}>
                         {(loading || userLoading) && <Loader2Icon className='animate-spin mr-2'/>}
-                        {userLoading ? 'Loading...' : loading ? 'Submitting...' : 'Submit'}
+                        {userLoading ? 'Loading Profile...' : loading ? 'Submitting...' : 'Submit'}
                     </Button>
                     
                 </DialogFooter>
