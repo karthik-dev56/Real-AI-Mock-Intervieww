@@ -16,7 +16,7 @@ function HeroSection() {
         <div className="absolute mx-auto h-px w-40 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-pulse" />
       </div>
       <div className="px-4 py-6 md:py-8">
-        <h1 className="relative z-10 mx-auto max-w-4xl bg-gradient-to-br from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-center text-3xl font-extrabold tracking-tight text-transparent md:text-5xl lg:text-7xl dark:from-slate-100 dark:via-slate-300 dark:to-slate-100">
+        <h1 className="relative z-10 mx-auto max-w-4xl text-center text-3xl font-extrabold tracking-tight text-gray-900 md:text-5xl lg:text-7xl dark:text-white">
           {"Ace Your Next Interview with AI"
             .split(" ")
             .map((word, index) => (
@@ -48,8 +48,8 @@ function HeroSection() {
           }}
           className="relative z-10 mx-auto max-w-2xl py-4 text-center text-base font-medium leading-relaxed text-neutral-700 md:text-lg dark:text-neutral-300"
         >
-          Practice with <span className="font-bold text-blue-600 underline decoration-blue-400/30 decoration-2 underline-offset-2 dark:text-blue-400">AI-powered mock interviews</span> tailored to your dream job. Get <span className="font-bold text-purple-600 underline decoration-purple-400/30 decoration-2 underline-offset-2 dark:text-purple-400">real-time feedback</span>, 
-          improve your responses, and build confidence to <span className="font-bold text-green-600 underline decoration-green-400/30 decoration-2 underline-offset-2 dark:text-green-400">crack any interview</span> with our cutting-edge platform.
+          Practice with <span className="font-bold text-blue-700 underline decoration-blue-500/40 decoration-2 underline-offset-2 dark:text-blue-400">AI-powered mock interviews</span> tailored to your dream job. Get <span className="font-bold text-purple-700 underline decoration-purple-500/40 decoration-2 underline-offset-2 dark:text-purple-400">real-time feedback</span>, 
+          improve your responses, and build confidence to <span className="font-bold text-green-700 underline decoration-green-500/40 decoration-2 underline-offset-2 dark:text-green-400">crack any interview</span> with our cutting-edge platform.
         </motion.p>
         <motion.div
           initial={{

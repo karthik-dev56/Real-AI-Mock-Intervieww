@@ -42,12 +42,21 @@ function CreateInterviewDialog() {
     
     const hasFile = !!file;
     const hasJobDetails = formdata?.jobTitle?.trim() && formdata?.jobDescription?.trim();
-    const isFormValid = hasFile || hasJobDetails;
+    const hasUserDetails = !!userDetails?._id;
+    const isFormValid = (hasFile || hasJobDetails) && hasUserDetails;
 
 
     const onSubmit=async()=> {
      
         setLoading(true);
+
+        // Check if userId exists before proceeding
+        if (!userDetails?._id) {
+            toast.error("User information not available. Please try again.");
+            setLoading(false);
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file',file || '');
         formData?.append('jobTitle',formdata?.jobTitle),
@@ -63,7 +72,7 @@ function CreateInterviewDialog() {
             const resp = await saveInterviewQuestions({
                 interviewQuestions:res.data.questions,
                 resumeUrl:res.data.resumeUrl || "",
-                userId:userDetails?._id,
+                userId:userDetails._id,
                 jobTitle:formdata?.jobTitle || "",
                 jobDescription:formdata?.jobDescription || "",
                 status: "draft" 
@@ -71,6 +80,7 @@ function CreateInterviewDialog() {
             router.push('/interview/'+resp)
         }catch(e) {
             console.log(e)
+            toast.error("Failed to create interview. Please try again.");
         }finally {
             setLoading(false);
         }
