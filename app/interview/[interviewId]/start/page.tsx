@@ -321,10 +321,13 @@ Key Guidelines:
                 let outputData = responseData.output || responseData;
                 console.log("Output data:", outputData);
                 
-                // Check if the data is wrapped in "Interview Analysis Report"
+
                 if (outputData['Interview Analysis Report']) {
                     outputData = outputData['Interview Analysis Report'];
                     console.log("Unwrapped Interview Analysis Report:", outputData);
+                } else if (outputData['interview_analysis']) {
+                    outputData = outputData['interview_analysis'];
+                    console.log("Unwrapped interview_analysis:", outputData);
                 }
         
                 const reportData = outputData.interview_analysis_report || outputData;
@@ -332,8 +335,31 @@ Key Guidelines:
                 
                
                 const extractData = () => {
-               
+                   
                     if (reportData.final_score !== undefined || reportData.finalScore !== undefined) {
+                       
+                        if (reportData.justification && (reportData.strengths || reportData.weaknesses)) {
+                            const strengthsData = reportData.strengths || "Not available";
+                            const strengthsString = Array.isArray(strengthsData) 
+                                ? strengthsData.join(', ') 
+                                : String(strengthsData);
+                            
+                            const weaknessesData = reportData.weaknesses || "Not available";
+                            const weaknessesString = Array.isArray(weaknessesData) 
+                                ? weaknessesData.join(', ') 
+                                : String(weaknessesData);
+                            
+                            return {
+                                finalScore: reportData.final_score || reportData.finalScore,
+                                overallEval: reportData.justification || "No evaluation provided",
+                                strengths: strengthsString,
+                                weaknesses: weaknessesString,
+                                reasonForDeduction: reportData.reason_for_deduction || reportData.reasonForDeduction || "Not available",
+                                conclusion: reportData.conclusion || "Not available"
+                            };
+                        }
+                        
+                        // Handle the old format with nested evaluation object
                         const evaluation = reportData.overall_evaluation || reportData.overallEvaluation || {};
                         const questionWise = reportData.question_wise_justification || reportData.questionWiseJustification || [];
                         
