@@ -75,7 +75,7 @@ function Dashboard() {
                         <div className='relative flex justify-between items-start mb-4'>
                             <div>
                                 <h3 className='text-sm text-gray-300 font-medium'>Final Score</h3>
-                                <p className='text-3xl font-bold text-white mt-1'>{item.finalScore ?? 0}<span className='text-lg text-gray-400'>/10</span></p>
+                                <p className='text-3xl font-bold text-white mt-1'>{item.finalScore ?? 0}<span className='text-lg text-gray-400'>/20</span></p>
                             </div>
                             <div className='bg-gray-700/50 text-gray-200 px-3 py-1 rounded-full text-xs font-semibold'>
                                 #{index + 1}

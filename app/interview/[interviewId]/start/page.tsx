@@ -15,6 +15,116 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 
+// Helper function to parse text-based response from webhook
+function parseTextBasedResponse(textData: string): any {
+    console.log("=== PARSING TEXT DATA ===");
+    console.log("Raw text:", textData);
+    const lines = textData.trim().split('\n');
+    console.log("Total lines:", lines.length);
+    const result: any = {};
+    let currentKey = '';
+    let currentSection = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+        const trimmedLine = lines[i].trim();
+        console.log("Processing line:", trimmedLine);
+        
+        // Skip empty lines or main header
+        if (!trimmedLine || trimmedLine === 'interview_analysis' || trimmedLine === 'Interview Analysis Report') {
+            continue;
+        }
+        
+        // Check if this is a numbered section (e.g., "3. Final Score")
+        if (/^\d+\.\s/.test(trimmedLine)) {
+            currentSection = trimmedLine;
+            console.log(`Section: ${currentSection}`);
+            continue;
+        }
+        
+        // Check if line contains a colon (key:value pair)
+        if (trimmedLine.includes(':')) {
+            const colonIndex = trimmedLine.indexOf(':');
+            const key = trimmedLine.substring(0, colonIndex).trim();
+            const value = trimmedLine.substring(colonIndex + 1).trim();
+            
+            // Check if this is an array item (e.g., "0:value" or "1:value")
+            if (/^\d+$/.test(key)) {
+                // It's an array index
+                if (!Array.isArray(result[currentKey])) {
+                    result[currentKey] = [];
+                }
+                result[currentKey].push(value);
+                console.log(`Added to array ${currentKey}: ${value}`);
+            } else {
+                // It's a regular key - map to standard field names
+                let mappedKey = key;
+                
+                // Handle numbered section keys
+                if (key.startsWith('1.') || key.includes('Question-wise')) {
+                    mappedKey = 'questionWiseJustification';
+                } else if (key === 'Score') {
+                    mappedKey = 'finalScore';
+                } else if (key.startsWith('4.') || key.includes('Reason for Deduction')) {
+                    mappedKey = 'reasonForDeduction';
+                } else if (key.startsWith('5.') || key === 'Conclusion') {
+                    mappedKey = 'conclusion';
+                } else if (key === 'final_score') {
+                    mappedKey = 'finalScore';
+                } else if (key === 'overall_performance') {
+                    mappedKey = 'overallPerformance';
+                } else if (key === 'ready_for_interview') {
+                    mappedKey = 'readyForInterview';
+                } else if (key === 'reason_for_deduction') {
+                    mappedKey = 'reasonForDeduction';
+                } else if (key === 'candidate_name') {
+                    mappedKey = 'candidateName';
+                }
+                
+                result[mappedKey] = value;
+                currentKey = mappedKey;
+                console.log(`Set ${mappedKey} = ${value}`);
+            }
+        } else if (trimmedLine === 'Strengths' || trimmedLine === 'Weaknesses' || trimmedLine === 'Weaknesses / Improvement Areas') {
+            // This is a subsection header for arrays
+            currentKey = trimmedLine === 'Strengths' ? 'strengths' : 'weaknesses';
+            if (!result[currentKey]) {
+                result[currentKey] = [];
+            }
+            console.log(`Subsection: ${currentKey}`);
+        }
+    }
+    
+    // Convert finalScore to number
+    console.log("Before conversion - finalScore:", result.finalScore, typeof result.finalScore);
+    if (result.finalScore && typeof result.finalScore === 'string') {
+        // Handle formats like "12/20" or "12"
+        if (result.finalScore.includes('/')) {
+            result.finalScore = parseInt(result.finalScore.split('/')[0].trim(), 10);
+            console.log("Converted from X/Y format:", result.finalScore);
+        } else {
+            result.finalScore = parseInt(result.finalScore, 10);
+            console.log("Converted from plain number:", result.finalScore);
+        }
+    }
+    console.log("After conversion - finalScore:", result.finalScore);
+    
+    // Convert arrays to comma-separated strings if needed
+    if (Array.isArray(result.strengths)) {
+        result.strengths = result.strengths.join(', ');
+    }
+    if (Array.isArray(result.weaknesses)) {
+        result.weaknesses = result.weaknesses.join(', ');
+    }
+    
+    // Use questionWiseJustification as overallPerformance if not set
+    if (!result.overallPerformance && result.questionWiseJustification) {
+        result.overallPerformance = result.questionWiseJustification;
+    }
+    
+    console.log("Parsed text-based response:", result);
+    return result;
+}
+
 type InterviewData = {
     jobTitle?: string | null;
     jobDescription?: string | null;
@@ -166,11 +276,11 @@ CRITICAL: You will ask EXACTLY `+numQuestions+` questions from the list below - 
 Questions to ask:
 `+questionList.map((q, i) => `${i+1}. ${q}`).join("\n") +`
 
-Ask one question at a time and also you should ask also ask technical questions also from easy to medium and wait for the candidate's response before proceeding. Keep the questions clear and concise.
+Ask one question at a time u should ask more on technical also at last regarding project according to that reduce or increase marks and also you should ask also ask technical questions also from easy to medium and wait for the candidate's response before proceeding. Keep the questions clear and concise.
 If the candidate answers confidently, proceed to the next question. Example:
 "Great answer! Now, let's move on to the next one."
 after asking 3 questions also ask have u done any project on this technology? if yes ask about the project details.
-ask every question easy to medium level only and make sure interview should be realistic.
+ask every question easy to medium and also must asks concepts in that level only and make sure interview should be realistic.
 
 If the candidate struggles, offer hints or rephrase the question without giving away the answer. Example:
 "Need a hint? Think about the core concept behind this!"
@@ -189,7 +299,7 @@ MANDATORY: After completing ALL `+numQuestions+` questions (and ONLY after compl
 3. End with an encouraging note: "Thanks for your time! The interview is now complete. Best of luck with your results!"
 
 Key Guidelines:
-✅ Ask EXACTLY `+numQuestions+` questions - count them carefully
+✅ Ask EXACTLY `+numQuestions+` questions - count them carefully or 8 else U will be penalized.
 ✅ Be friendly, engaging, and witty 🎤
 ✅ Keep responses short and natural, like a real conversation
 ✅ Adapt based on the candidate's confidence level
@@ -295,10 +405,7 @@ Key Guidelines:
             
            
             const currentConversation = conversationRef.current;
-            
-            // console.log("Current conversation ref:", currentConversation);
-            // console.log("Conversation state:", conversationData);
-            // console.log("Conversation length:", currentConversation?.length || 0);
+        
             
            
             if (currentConversation && currentConversation.length > 0) {
@@ -320,7 +427,15 @@ Key Guidelines:
             
                 let outputData = responseData.output || responseData;
                 console.log("Output data:", outputData);
+                console.log("Output data type:", typeof outputData);
                 
+               
+                if (typeof outputData === 'string' && (outputData.includes('interview_analysis') || outputData.includes('Final Score') || outputData.includes('Score:'))) {
+                    console.log("Parsing text-based format...");
+                    const parsedData = parseTextBasedResponse(outputData);
+                    outputData = parsedData;
+                    console.log("Parsed text data:", outputData);
+                }
 
                 if (outputData['Interview Analysis Report']) {
                     outputData = outputData['Interview Analysis Report'];
@@ -328,13 +443,123 @@ Key Guidelines:
                 } else if (outputData['interview_analysis']) {
                     outputData = outputData['interview_analysis'];
                     console.log("Unwrapped interview_analysis:", outputData);
+                } else if (outputData['interview_assessment']) {
+                    outputData = outputData['interview_assessment'];
+                    console.log("Unwrapped interview_assessment:", outputData);
                 }
         
                 const reportData = outputData.interview_analysis_report || outputData;
                 console.log("Report data:", reportData);
+               
+                if (reportData.final_score !== undefined && reportData.finalScore === undefined) {
+                    reportData.finalScore = reportData.final_score;
+                }
+                if (reportData.overall_performance && !reportData.overallPerformance) {
+                    reportData.overallPerformance = reportData.overall_performance;
+                }
+                if (reportData.reason_for_deduction && !reportData.reasonForDeduction) {
+                    reportData.reasonForDeduction = reportData.reason_for_deduction;
+                }
+                
+                
+                if (Array.isArray(reportData.strengths)) {
+                    reportData.strengths = reportData.strengths.join(', ');
+                }
+                if (Array.isArray(reportData.weaknesses)) {
+                    reportData.weaknesses = reportData.weaknesses.join(', ');
+                }
+                
+                
+                if (reportData['3. Final Score'] && typeof reportData['3. Final Score'] === 'object') {
+                    const scoreObj = reportData['3. Final Score'];
+                    if (scoreObj.Score) {
+                        reportData.finalScore = scoreObj.Score;
+                        console.log("Extracted Score from nested object:", scoreObj.Score);
+                    }
+                }
+                
+               
+                if (reportData['2. Overall Evaluation'] && typeof reportData['2. Overall Evaluation'] === 'object') {
+                    const evalObj = reportData['2. Overall Evaluation'];
+                    if (evalObj.Strengths) {
+                        reportData.strengths = Array.isArray(evalObj.Strengths) ? evalObj.Strengths.join(', ') : evalObj.Strengths;
+                    }
+                    if (evalObj['Weaknesses / Improvement Areas']) {
+                        reportData.weaknesses = Array.isArray(evalObj['Weaknesses / Improvement Areas']) 
+                            ? evalObj['Weaknesses / Improvement Areas'].join(', ') 
+                            : evalObj['Weaknesses / Improvement Areas'];
+                    }
+                }
+                
+                
+                if (reportData['1. Question-wise Justification']) {
+                    reportData.questionWiseJustification = reportData['1. Question-wise Justification'];
+                }
+                if (reportData['4. Reason for Deduction']) {
+                    reportData.reasonForDeduction = reportData['4. Reason for Deduction'];
+                }
+                if (reportData['5. Conclusion']) {
+                    reportData.conclusion = reportData['5. Conclusion'];
+                }
+                
+                
+                if (reportData.justification && !reportData.questionWiseJustification) {
+                    reportData.questionWiseJustification = reportData.justification;
+                }
+                
+                console.log("Report data after extraction:", reportData);
                 
                
                 const extractData = () => {
+                    console.log("=== EXTRACTING DATA ===");
+                    console.log("reportData.finalScore:", reportData.finalScore);
+                    console.log("reportData.questionWiseJustification:", reportData.questionWiseJustification);
+                    console.log("reportData.strengths:", reportData.strengths);
+                    console.log("reportData.weaknesses:", reportData.weaknesses);
+                    
+                    
+                    if (reportData.finalScore !== undefined) {
+                        console.log("✅ Found finalScore, extracting all data");
+                        
+                      
+                        let finalScore = reportData.finalScore;
+                        if (typeof finalScore === 'string') {
+                            if (finalScore.includes('/')) {
+                                finalScore = parseInt(finalScore.split('/')[0].trim(), 10);
+                            } else {
+                                finalScore = parseInt(finalScore, 10);
+                            }
+                        }
+                        console.log("Parsed finalScore:", finalScore);
+                        
+                        const strengthsData = reportData.strengths || "Not available";
+                        const strengthsString = typeof strengthsData === 'string' 
+                            ? strengthsData 
+                            : Array.isArray(strengthsData) 
+                                ? strengthsData.join(', ') 
+                                : String(strengthsData);
+                        
+                        const weaknessesData = reportData.weaknesses || "Not available";
+                        const weaknessesString = typeof weaknessesData === 'string'
+                            ? weaknessesData
+                            : Array.isArray(weaknessesData) 
+                                ? weaknessesData.join(', ') 
+                                : String(weaknessesData);
+                      
+                        const overallEval = reportData.questionWiseJustification || 
+                                          reportData.overallPerformance || 
+                                          reportData.overall_performance || 
+                                          "No evaluation provided";
+                        
+                        return {
+                            finalScore: finalScore,
+                            overallEval: overallEval,
+                            strengths: strengthsString,
+                            weaknesses: weaknessesString,
+                            reasonForDeduction: reportData.reasonForDeduction || reportData.reason_for_deduction || "Not available",
+                            conclusion: reportData.conclusion || "Not available"
+                        };
+                    }
                    
                     if (reportData.final_score !== undefined || reportData.finalScore !== undefined) {
                        
@@ -359,7 +584,7 @@ Key Guidelines:
                             };
                         }
                         
-                        // Handle the old format with nested evaluation object
+                      
                         const evaluation = reportData.overall_evaluation || reportData.overallEvaluation || {};
                         const questionWise = reportData.question_wise_justification || reportData.questionWiseJustification || [];
                         
