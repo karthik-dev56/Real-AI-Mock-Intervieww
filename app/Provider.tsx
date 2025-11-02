@@ -10,25 +10,36 @@ function Provider({children}: any) {
   const {user} = useUser();
   const CreateUser = useMutation(api.users.CreateNewUser);
   const [userDetails, setUserDetails] = useState<any>();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    user && CreateNewUser();
+    if (user) {
+      CreateNewUser();
+    }
   }, [user]);
 
   const CreateNewUser = async () => {
     if(user) {
-      const result = await CreateUser({
-        email:user?.primaryEmailAddress?.emailAddress??'',
-        imageUrl:user?.imageUrl??'',
-        name:user?.fullName??''
-      });
-      setUserDetails(result);
-     
+      try {
+        const result = await CreateUser({
+          email:user?.primaryEmailAddress?.emailAddress??'',
+          imageUrl:user?.imageUrl??'',
+          name:user?.fullName??''
+        });
+        setUserDetails(result);
+        console.log('User details loaded:', result);
+      } catch (error) {
+        console.error('Error creating user:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setIsLoading(false);
     }
   }
   
   return (
-    <UserDetailContext.Provider value={{ userDetails, setUserDetails }}>
+    <UserDetailContext.Provider value={{ userDetails, setUserDetails, isLoading }}>
       <div>{children}</div>
     </UserDetailContext.Provider>
   )

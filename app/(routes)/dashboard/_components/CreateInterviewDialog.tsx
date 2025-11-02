@@ -25,7 +25,7 @@ function CreateInterviewDialog() {
     const[formdata,setFormData]=useState<any>()
     const[file,setFiles]=useState<File|null>()
     const[loading,setLoading]=useState(false)
-    const {userDetails, setUserDetails} = useContext(UserDetailContext);
+    const {userDetails, setUserDetails, isLoading: userLoading} = useContext(UserDetailContext);
 
     const saveInterviewQuestions=useMutation(api.interview.SaveInterview)
 
@@ -42,17 +42,16 @@ function CreateInterviewDialog() {
     
     const hasFile = !!file;
     const hasJobDetails = formdata?.jobTitle?.trim() && formdata?.jobDescription?.trim();
-    const hasUserDetails = !!userDetails?._id;
-    const isFormValid = (hasFile || hasJobDetails) && hasUserDetails;
+    const isFormValid = (hasFile || hasJobDetails);
 
 
     const onSubmit=async()=> {
      
         setLoading(true);
 
-        // Check if userId exists before proceeding
-        if (!userDetails?._id) {
-            toast.error("User information not available. Please try again.");
+        
+        if (userLoading || !userDetails?._id) {
+            toast.error("Please wait while we load your profile, then try again.");
             setLoading(false);
             return;
         }
@@ -108,9 +107,10 @@ function CreateInterviewDialog() {
                     <DialogClose>
                         <Button variant="ghost">Cancel</Button>
                     </DialogClose>
-                    <Button onClick={onSubmit} disabled={loading || !isFormValid}>
-                        {loading && <Loader2Icon className='animate-spin'/>}
-                        Submit</Button>
+                    <Button onClick={onSubmit} disabled={loading || !isFormValid || userLoading}>
+                        {(loading || userLoading) && <Loader2Icon className='animate-spin mr-2'/>}
+                        {userLoading ? 'Loading...' : loading ? 'Submitting...' : 'Submit'}
+                    </Button>
                     
                 </DialogFooter>
             </DialogContent>

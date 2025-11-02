@@ -120,7 +120,7 @@ function InterviewResult() {
                     <div className="text-center border-b pb-6">
                         <h2 className="text-xl font-semibold text-gray-700 mb-2">Final Score</h2>
                         <p className="text-5xl font-bold text-blue-600">
-                            {resultData.finalScore || 0}/10
+                            {resultData.finalScore || 0}/20
                         </p>
                     </div>
 
