@@ -1,4 +1,4 @@
-import React,{createContext, useContext, useState} from 'react'
+import React,{createContext, useContext, useState, useEffect} from 'react'
 import { toast } from "sonner"
 import {
     Dialog,
@@ -30,6 +30,12 @@ function CreateInterviewDialog() {
     const saveInterviewQuestions=useMutation(api.interview.SaveInterview)
 
     const router = useRouter();
+
+   
+    React.useEffect(() => {
+        console.log('CreateInterviewDialog - userDetails:', userDetails);
+        console.log('CreateInterviewDialog - userLoading:', userLoading);
+    }, [userDetails, userLoading]);
 
     const onHandleInputChange=(field:string,value:string)=> {
           setFormData((prev:any)=> ({
