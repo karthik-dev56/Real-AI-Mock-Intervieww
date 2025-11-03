@@ -166,8 +166,10 @@ function Startinterview() {
     const hasStartedCall = React.useRef(false);
     const vapiRef = React.useRef<Vapi | null>(null);
     const [micPermissionGranted, setMicPermissionGranted] = useState(false);
+    const [vapiReady, setVapiReady] = useState(false);
+    const [readyToStart, setReadyToStart] = useState(false);
+    const [showStartButton, setShowStartButton] = useState(false);
     
-    // Request microphone permission on mount
     useEffect(() => {
         const requestMicrophonePermission = async () => {
             try {
@@ -175,7 +177,7 @@ function Startinterview() {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 console.log('✅ Microphone permission granted');
                 setMicPermissionGranted(true);
-                // Stop the stream immediately after getting permission
+             
                 stream.getTracks().forEach(track => track.stop());
             } catch (error) {
                 console.error('❌ Microphone permission denied:', error);
@@ -200,13 +202,20 @@ function Startinterview() {
                 return;
             }
             
-            try {
-                vapiRef.current = new Vapi(apiKey);
-                console.log('✅ Vapi instance created successfully');
-            } catch (error) {
-                console.error('❌ Failed to create Vapi instance:', error);
-                toast.error('Failed to initialize voice interface');
-            }
+           
+            setTimeout(() => {
+                try {
+                    vapiRef.current = new Vapi(apiKey);
+                    console.log('✅ Vapi instance created successfully');
+                    setTimeout(() => {
+                        setVapiReady(true);
+                        console.log('✅ Vapi is now ready to start calls');
+                    }, 800);
+                } catch (error) {
+                    console.error('❌ Failed to create Vapi instance:', error);
+                    toast.error('Failed to initialize voice interface');
+                }
+            }, 500); 
         }
     }, [micPermissionGranted]);
 
@@ -218,40 +227,59 @@ function Startinterview() {
         Resultsdata();
     }, [Resultdata])
 
+    
     useEffect(() => {
-        const canStartCall = InterviewQuestions?.interviewQuestions && 
-                           InterviewQuestions.interviewQuestions.length > 0 && 
-                           userDetails && 
-                           user && 
-                           !isLoading &&
-                           !hasStartedCall.current &&
-                           vapiRef.current &&
-                           micPermissionGranted; // Wait for microphone permission
+        const allReady = InterviewQuestions?.interviewQuestions && 
+                        InterviewQuestions.interviewQuestions.length > 0 && 
+                        userDetails && 
+                        user && 
+                        !isLoading &&
+                        vapiRef.current &&
+                        micPermissionGranted &&
+                        vapiReady;
         
-        if (canStartCall) {
-            console.log('✅ All data loaded (including mic permission), starting call in 1000ms...', {
+        if (allReady && !readyToStart) {
+            console.log('✅ All data loaded and ready!', {
                 user: user.fullName,
                 userDetails: userDetails._id,
                 questions: InterviewQuestions.interviewQuestions?.length || 0,
-                micPermission: micPermissionGranted
+                micPermission: micPermissionGranted,
+                vapiReady: vapiReady
             });
-            hasStartedCall.current = true;
+            setReadyToStart(true);
             
-            // Increased delay to ensure everything is ready
             setTimeout(() => {
-                Startcall();
+                setShowStartButton(true);
+                console.log('✅ Ready to start interview - waiting for user to click button');
             }, 1000);
-        } else if (!hasStartedCall.current) {
+        } else if (!readyToStart) {
             console.log('⏳ Waiting for data...', {
                 hasQuestions: !!InterviewQuestions?.interviewQuestions?.length,
                 hasUserDetails: !!userDetails,
                 hasUser: !!user,
                 hasVapi: !!vapiRef.current,
                 hasMicPermission: micPermissionGranted,
+                vapiReady: vapiReady,
                 isLoading
             });
         }
-    }, [InterviewQuestions, userDetails, user, isLoading, micPermissionGranted])
+    }, [InterviewQuestions, userDetails, user, isLoading, micPermissionGranted, vapiReady])
+    
+
+    const handleStartInterview = () => {
+        if (hasStartedCall.current) {
+            console.log('⚠️ Call already started');
+            return;
+        }
+        
+        console.log('🚀 User clicked Start Interview button');
+        hasStartedCall.current = true;
+        setShowStartButton(false);
+        
+        setTimeout(() => {
+            Startcall();
+        }, 500);
+    }
 
     
     useEffect(() => {
@@ -378,13 +406,13 @@ function Startinterview() {
             let errorMessage = "Unknown error";
             let errorType = error?.error?.type || error?.type;
             
-            // Check for specific error types first
+        
             if (errorType === 'no-room' || error?.error?.msg?.includes('room was deleted')) {
                 errorMessage = "🚨 VAPI ACCOUNT ISSUE: Your Vapi account is out of credits, has expired, or has billing issues. Please check your Vapi dashboard at https://dashboard.vapi.ai and verify: 1) Active subscription, 2) Available credits, 3) Valid payment method.";
             } else if (errorType === 'ejected') {
                 errorMessage = "🚨 CALL REJECTED: Vapi rejected the call. This usually means invalid configuration or account issues. Check your Vapi dashboard.";
             } else {
-                // Parse error message from various locations
+               
                 if (error?.errorMsg) {
                     errorMessage = error.errorMsg;
                 } else if (error?.error?.msg) {
@@ -397,7 +425,7 @@ function Startinterview() {
                     errorMessage = error;
                 }
                 
-                // Add context for generic "Meeting has ended"
+                
                 if (errorMessage.includes("Meeting has ended")) {
                     errorMessage = "Call ended immediately. Check your Vapi account for billing/credit issues at https://dashboard.vapi.ai";
                 }
@@ -478,12 +506,15 @@ MANDATORY: After completing ALL `+numQuestions+` questions (and ONLY after compl
 3. End with an encouraging note: "Thanks for your time! The interview is now complete. Best of luck with your results!"
 
 Key Guidelines:
-✅ Ask EXACTLY `+numQuestions+` questions - count them carefully or 8 else U will be penalized.
+✅ Ask EXACTLY 10 questions - count them carefully and also need to ask about projects after 6 question
 ✅ Be friendly, engaging, and witty 🎤
 ✅ Keep responses short and natural, like a real conversation
 ✅ Adapt based on the candidate's confidence level
 ✅ ALWAYS provide performance feedback after ALL questions are done
 ✅ Make the candidate feel comfortable and supported throughout
+✅ Make sure your are strict in interview in asking questions and also in time limit
+✅ if candiate is not answering well say him or her to improve in that area
+✅ Be like a human interviewer
 ✅ After the final question's answer, immediately give your performance summary and end the interview
 `.trim(),
                     },
@@ -516,14 +547,7 @@ Key Guidelines:
             modelName: assistantOptions.model.model
         });
         
-        console.log('⚠️ IMPORTANT: If you see "Meeting has ended" or "no-room" errors:');
-        console.log('🔴 PRIMARY CAUSE: Your Vapi account is likely out of credits or has billing issues!');
-        console.log('✅ SOLUTION: Go to https://dashboard.vapi.ai and:');
-        console.log('   1. Check your account balance/credits');
-        console.log('   2. Verify your subscription is active');
-        console.log('   3. Add payment method or purchase credits');
-        console.log('   4. Check for any account warnings/suspensions');
-        
+
         try {
             // @ts-ignore
             const startPromise = vapiRef.current.start(assistantOptions);
@@ -959,19 +983,28 @@ Key Guidelines:
         }
     }
 
-    // Show loading state while initializing
-    if (isLoading || !userDetails || !user || !InterviewQuestions || !micPermissionGranted) {
+    
+    if (isLoading || !userDetails || !user || !InterviewQuestions || !micPermissionGranted || !vapiReady) {
+        let loadingMessage = 'Initializing Interview...';
+        let subMessage = 'Please wait while we set up your session';
+        
+        if (!micPermissionGranted) {
+            loadingMessage = '🎤 Requesting Microphone Permission...';
+            subMessage = 'Please allow microphone access to continue';
+        } else if (!vapiReady) {
+            loadingMessage = '🔧 Setting up voice interface...';
+            subMessage = 'Preparing your interview session';
+        }
+        
         return (
             <div className='p-20 lg:px-48 xl:px-56'>
                 <div className='flex flex-col items-center justify-center h-[500px]'>
                     <div className='animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600'></div>
                     <h2 className='mt-4 text-xl font-semibold text-gray-700'>
-                        {!micPermissionGranted ? '🎤 Requesting Microphone Permission...' : 'Initializing Interview...'}
+                        {loadingMessage}
                     </h2>
                     <p className='mt-2 text-gray-500'>
-                        {!micPermissionGranted 
-                            ? 'Please allow microphone access to continue' 
-                            : 'Please wait while we set up your session'}
+                        {subMessage}
                     </p>
                 </div>
             </div>
@@ -1007,16 +1040,31 @@ Key Guidelines:
 
             </div>
 
-            <div className='flex items-center justify-center gap-5 mt-6'>
-                <Mic className='h-12 w-12 p-3 bg-gray-500 text-white rounded-full cursor-pointer' />
-                <AppDialog stopinterview={() => stopInterview()}>
-                <Phone className='h-12 w-12 p-3 bg-red-500 text-white rounded-full cursor-pointer' />
-                </AppDialog>
-
-            </div>
-            <div className='text-center mt-4'>
-                <p className='text-gray-500 text-lg'>Interview in progress...</p>
-            </div>
+            
+            {showStartButton && !isInterviewActive ? (
+                <div className='flex flex-col items-center justify-center gap-5 mt-6'>
+                    <button 
+                        onClick={handleStartInterview}
+                        className='px-8 py-4 bg-black-600 hover:bg-black-700 text-white font-bold text-xl rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3'
+                    >
+                        <Phone className='h-6 w-6' />
+                        Start Interview
+                    </button>
+                    <p className='text-gray-600 text-sm'>Click to begin your AI interview session</p>
+                </div>
+            ) : isInterviewActive ? (
+                <>
+                    <div className='flex items-center justify-center gap-5 mt-6'>
+                        <Mic className='h-12 w-12 p-3 bg-gray-500 text-white rounded-full cursor-pointer' />
+                        <AppDialog stopinterview={() => stopInterview()}>
+                            <Phone className='h-12 w-12 p-3 bg-red-500 text-white rounded-full cursor-pointer' />
+                        </AppDialog>
+                    </div>
+                    <div className='text-center mt-4'>
+                        <p className='text-gray-500 text-lg'>Interview in progress...</p>
+                    </div>
+                </>
+            ) : null}
 
         </div>
     )
