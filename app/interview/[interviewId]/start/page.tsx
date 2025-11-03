@@ -172,11 +172,27 @@ function Startinterview() {
     const isInitialMount = React.useRef(true);
     const isInitializingVapi = React.useRef(false);
     const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+    const [isReloading, setIsReloading] = useState(false);
+    const shouldAutoStartRef = React.useRef(false);
     
+
+    useEffect(() => {
+        const shouldAutoStart = sessionStorage.getItem('autoStartInterview');
+        if (shouldAutoStart === 'true') {
+            console.log('🔄 Auto-start detected after reload');
+            shouldAutoStartRef.current = true;
+            sessionStorage.removeItem('autoStartInterview'); 
+         
+            sessionStorage.setItem('hasSeenInterviewWelcome', 'true');
+        }
+    }, []);
     
     useEffect(() => {
         const hasSeenWelcome = sessionStorage.getItem('hasSeenInterviewWelcome');
-        if (!hasSeenWelcome) {
+        const shouldAutoStart = sessionStorage.getItem('autoStartInterview');
+        
+        
+        if (!hasSeenWelcome && shouldAutoStart !== 'true') {
             setTimeout(() => {
                 setShowWelcomePopup(true);
             }, 1000);
@@ -303,10 +319,25 @@ function Startinterview() {
             });
             setReadyToStart(true);
             
-            setTimeout(() => {
-                setShowStartButton(true);
-                console.log('✅ Ready to start interview - waiting for user to click button');
-            }, 1000);
+    
+            if (shouldAutoStartRef.current) {
+                console.log('🚀 Auto-starting interview after reload...');
+                shouldAutoStartRef.current = false;
+                toast.success('Starting your interview automatically...');
+                setTimeout(() => {
+                   
+                    hasStartedCall.current = true;
+                    setShowStartButton(false);
+                    setTimeout(() => {
+                        Startcall();
+                    }, 500);
+                }, 1500);
+            } else {
+                setTimeout(() => {
+                    setShowStartButton(true);
+                    console.log('✅ Ready to start interview - waiting for user to click button');
+                }, 1000);
+            }
         } else if (!readyToStart) {
             console.log('⏳ Waiting for data...', {
                 hasQuestions: !!InterviewQuestions?.interviewQuestions?.length,
@@ -333,7 +364,27 @@ function Startinterview() {
             return;
         }
         
-        console.log('🚀 User clicked Start Interview button');
+        // Check if this is first click (before reload)
+        const hasReloaded = sessionStorage.getItem('hasReloadedForInterview');
+        
+        if (!hasReloaded) {
+            console.log('� First click - Setting up auto-reload and starting interview...');
+            setIsReloading(true);
+            
+          
+            sessionStorage.setItem('autoStartInterview', 'true');
+            sessionStorage.setItem('hasReloadedForInterview', 'true');
+            
+            toast.info('Refreshing page for optimal connection...');
+            
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
+            return;
+        }
+        
+        console.log('🚀 Starting interview (after reload)');
         hasStartedCall.current = true;
         setShowStartButton(false);
         
@@ -466,7 +517,7 @@ function Startinterview() {
         vapiRef.current?.on("call-end", (callData: any)=> {
             console.log("📞 Call ended with data:", callData);
             setIsInterviewActive(false);
-            hasStartedCall.current = false; // Reset so user could potentially start again
+            hasStartedCall.current = false; 
             if (callData?.conversation) {
                 console.log("Conversation from call-end:", callData.conversation);
                 conversationRef.current = callData.conversation;
@@ -1141,16 +1192,31 @@ Key Guidelines:
                         </div>
                         
                         <div className='space-y-4 mb-6'>
+                            <div className='bg-blue-50 border-l-4 border-blue-500 p-4 rounded'>
+                                <div className='flex items-start gap-3'>
+                                    <RefreshCw className='h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0' />
+                                    <div>
+                                        <h3 className='font-semibold text-blue-900 mb-1'>
+                                            ✨ Automatic Connection Optimization
+                                        </h3>
+                                        <p className='text-blue-800 text-sm'>
+                                            When you click <span className='font-bold'>"Start Interview"</span>, the page will automatically refresh to ensure the best connection. 
+                                            Your interview will then start immediately. <span className='font-bold'>No need to do anything - just wait!</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div className='bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded'>
                                 <div className='flex items-start gap-3'>
-                                    <RefreshCw className='h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0' />
+                                    <AlertCircle className='h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0' />
                                     <div>
                                         <h3 className='font-semibold text-yellow-900 mb-1'>
-                                            ⚠️ IMPORTANT: If Connection Fails
+                                            ⚠️ If Connection Still Fails
                                         </h3>
                                         <p className='text-yellow-800 text-sm'>
-                                            If you see any connection errors or the interview doesn't start, 
-                                            <span className='font-bold'> simply reload/refresh this page (Press F5 or Ctrl+R)</span> and click "Start Interview" again.
+                                            In rare cases, if you see errors after the auto-reload, 
+                                            <span className='font-bold'> manually refresh (F5/Ctrl+R)</span> and try again.
                                         </p>
                                     </div>
                                 </div>
@@ -1238,13 +1304,13 @@ Key Guidelines:
             </div>
 
             
-            {showStartButton && !isInterviewActive && !hasStartedCall.current ? (
+            {showStartButton && !isInterviewActive && !hasStartedCall.current && !isReloading ? (
                 <div className='flex flex-col items-center justify-center gap-5 mt-6'>
                     <button 
                         onClick={handleStartInterview}
-                        disabled={!vapiReady || !micPermissionGranted || hasStartedCall.current}
+                        disabled={!vapiReady || !micPermissionGranted || hasStartedCall.current || isReloading}
                         className={`px-8 py-4 bg-black hover:bg-gray-900 text-white font-bold text-xl rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3 ${
-                            !vapiReady || !micPermissionGranted || hasStartedCall.current ? 'opacity-50 cursor-not-allowed' : ''
+                            !vapiReady || !micPermissionGranted || hasStartedCall.current || isReloading ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                     >
                         <Phone className='h-6 w-6' />
@@ -1279,6 +1345,16 @@ Key Guidelines:
                         <p className='text-gray-500 text-lg'>Interview in progress...</p>
                     </div>
                 </>
+            ) : isReloading ? (
+                <div className='flex flex-col items-center justify-center gap-5 mt-6'>
+                    <div className='flex items-center gap-3'>
+                        <RefreshCw className='h-12 w-12 text-blue-600 animate-spin' />
+                    </div>
+                    <p className='text-gray-600 text-lg font-semibold'>Refreshing page for optimal connection...</p>
+                    <p className='text-gray-500 text-sm mt-2 max-w-md text-center'>
+                        Your interview will start automatically in a moment
+                    </p>
+                </div>
             ) : hasStartedCall.current && !isInterviewActive ? (
                 <div className='flex flex-col items-center justify-center gap-5 mt-6'>
                     <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600'></div>
