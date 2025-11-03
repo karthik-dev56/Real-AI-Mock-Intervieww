@@ -9,6 +9,7 @@ import { UserDetailContext } from '@/context/UserDetailContext';
 import { useUser } from '@clerk/nextjs';
 import { Mic } from 'lucide-react';
 import { Phone } from 'lucide-react';
+import { AlertCircle, X, RefreshCw } from 'lucide-react';
 import Vapi from '@vapi-ai/web';
 import AppDialog from './_components/AppDialog';
 import { toast } from 'sonner';
@@ -115,7 +116,7 @@ function parseTextBasedResponse(textData: string): any {
         result.weaknesses = result.weaknesses.join(', ');
     }
     
-    // Use questionWiseJustification as overallPerformance if not set
+   
     if (!result.overallPerformance && result.questionWiseJustification) {
         result.overallPerformance = result.questionWiseJustification;
     }
@@ -170,6 +171,22 @@ function Startinterview() {
     const [showStartButton, setShowStartButton] = useState(false);
     const isInitialMount = React.useRef(true);
     const isInitializingVapi = React.useRef(false);
+    const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+    
+    
+    useEffect(() => {
+        const hasSeenWelcome = sessionStorage.getItem('hasSeenInterviewWelcome');
+        if (!hasSeenWelcome) {
+            setTimeout(() => {
+                setShowWelcomePopup(true);
+            }, 1000);
+        }
+    }, []);
+    
+    const handleCloseWelcomePopup = () => {
+        setShowWelcomePopup(false);
+        sessionStorage.setItem('hasSeenInterviewWelcome', 'true');
+    };
     
   
     useEffect(() => {
@@ -1098,6 +1115,101 @@ Key Guidelines:
 
     return (
         <div className='p-20 lg:px-48 xl:px-56'>
+            {/* Welcome Popup for First-Time Users */}
+            {showWelcomePopup && (
+                <div className='fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4'>
+                    <div className='bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative animate-in fade-in zoom-in duration-300'>
+                        <button 
+                            onClick={handleCloseWelcomePopup}
+                            className='absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors'
+                        >
+                            <X className='h-6 w-6' />
+                        </button>
+                        
+                        <div className='flex items-start gap-4 mb-6'>
+                            <div className='bg-blue-100 p-3 rounded-full'>
+                                <AlertCircle className='h-8 w-8 text-blue-600' />
+                            </div>
+                            <div className='flex-1'>
+                                <h2 className='text-2xl font-bold text-gray-900 mb-2'>
+                                    Welcome to Your AI Interview! 🎙️
+                                </h2>
+                                <p className='text-gray-600 text-lg'>
+                                    Before you begin, please read these important instructions:
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className='space-y-4 mb-6'>
+                            <div className='bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded'>
+                                <div className='flex items-start gap-3'>
+                                    <RefreshCw className='h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0' />
+                                    <div>
+                                        <h3 className='font-semibold text-yellow-900 mb-1'>
+                                            ⚠️ IMPORTANT: If Connection Fails
+                                        </h3>
+                                        <p className='text-yellow-800 text-sm'>
+                                            If you see any connection errors or the interview doesn't start, 
+                                            <span className='font-bold'> simply reload/refresh this page (Press F5 or Ctrl+R)</span> and click "Start Interview" again.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className='bg-blue-50 border-l-4 border-blue-400 p-4 rounded'>
+                                <h3 className='font-semibold text-blue-900 mb-2'>✅ Before You Start:</h3>
+                                <ul className='text-blue-800 text-sm space-y-2'>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>Grant microphone permission when prompted</span>
+                                    </li>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>Ensure you're in a quiet environment</span>
+                                    </li>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>You have 10 minutes to complete the interview</span>
+                                    </li>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>Speak clearly and answer all questions thoughtfully</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <div className='bg-green-50 border-l-4 border-green-400 p-4 rounded'>
+                                <h3 className='font-semibold text-green-900 mb-2'>💡 Pro Tips:</h3>
+                                <ul className='text-green-800 text-sm space-y-2'>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>Wait for the AI to finish asking before answering</span>
+                                    </li>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>Use the red phone button to end the interview when done</span>
+                                    </li>
+                                    <li className='flex items-start gap-2'>
+                                        <span className='font-bold mt-0.5'>•</span>
+                                        <span>If you face issues, refresh and restart - your progress won't be lost</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div className='flex gap-3 justify-end'>
+                            <button
+                                onClick={handleCloseWelcomePopup}
+                                className='px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 flex items-center gap-2'
+                            >
+                                Got it! Let's Start
+                                <span className='text-xl'>→</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
             <h2 className='flex font-bold text-xl justify-between'> AI Interview Session
                 <span className={`flex gap-2 items-center ${timeRemaining < 60 ? 'text-red-600 animate-pulse' : timeRemaining < 180 ? 'text-orange-500' : 'text-green-600'}`}>
                     <Timer />
@@ -1145,9 +1257,15 @@ Key Guidelines:
                             ? '⏳ Preparing voice interface...' 
                             : 'Click to begin your AI interview session'}
                     </p>
-                    <p className='text-gray-500 text-xs mt-2 max-w-md text-center'>
-                        If you encounter connection issues, please refresh the page and try again.
-                    </p>
+                    <div className='bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4 max-w-2xl'>
+                        <p className='text-amber-800 text-sm font-medium flex items-center gap-2'>
+                            <RefreshCw className='h-4 w-4' />
+                            <span className='font-bold'>Having connection issues?</span>
+                        </p>
+                        <p className='text-amber-700 text-xs mt-1'>
+                            Simply refresh this page (F5 or Ctrl+R) and click "Start Interview" again. This usually resolves connection problems.
+                        </p>
+                    </div>
                 </div>
             ) : isInterviewActive ? (
                 <>
