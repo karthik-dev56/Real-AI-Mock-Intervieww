@@ -164,11 +164,30 @@ function Startinterview() {
     const [earlyExit, setEarlyExit] = useState(false);
     const timerRef = React.useRef<NodeJS.Timeout | null>(null);
     const hasStartedCall = React.useRef(false);
-
     const vapiRef = React.useRef<Vapi | null>(null);
-    if (!vapiRef.current) {
-        vapiRef.current = new Vapi(process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || '');
-    }
+    
+    
+    useEffect(() => {
+        if (!vapiRef.current) {
+            console.log('🔧 Initializing Vapi instance');
+            const apiKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
+            console.log('API Key status:', apiKey ? `Present (length: ${apiKey.length})` : 'MISSING!');
+            
+            if (!apiKey) {
+                console.error('❌ NEXT_PUBLIC_VAPI_PUBLIC_KEY is not set!');
+                toast.error('Voice service API key not configured');
+                return;
+            }
+            
+            try {
+                vapiRef.current = new Vapi(apiKey);
+                console.log('✅ Vapi instance created successfully');
+            } catch (error) {
+                console.error('❌ Failed to create Vapi instance:', error);
+                toast.error('Failed to initialize voice interface');
+            }
+        }
+    }, []);
 
     useEffect(() => {
         GetInterviewQuestions();
@@ -179,27 +198,31 @@ function Startinterview() {
     }, [Resultdata])
 
     useEffect(() => {
-       
         const canStartCall = InterviewQuestions?.interviewQuestions && 
                            InterviewQuestions.interviewQuestions.length > 0 && 
                            userDetails && 
                            user && 
                            !isLoading &&
-                           !hasStartedCall.current;
-        
+                           !hasStartedCall.current &&
+                           vapiRef.current; 
         if (canStartCall) {
-            console.log('✅ All data loaded, starting call...', {
+            console.log('✅ All data loaded, starting call in 500ms...', {
                 user: user.fullName,
                 userDetails: userDetails._id,
                 questions: InterviewQuestions.interviewQuestions?.length || 0
             });
             hasStartedCall.current = true;
-            Startcall();
+            
+         
+            setTimeout(() => {
+                Startcall();
+            }, 500);
         } else if (!hasStartedCall.current) {
             console.log('⏳ Waiting for data...', {
                 hasQuestions: !!InterviewQuestions?.interviewQuestions?.length,
                 hasUserDetails: !!userDetails,
                 hasUser: !!user,
+                hasVapi: !!vapiRef.current,
                 isLoading
             });
         }
@@ -325,8 +348,21 @@ function Startinterview() {
 
         vapiRef.current?.on("error", (error: any) => {
             console.error("❌ Vapi error:", error);
-            toast.error("Call error: " + (error.message || "Unknown error"));
+            console.error("Error details:", JSON.stringify(error, null, 2));
+            
+            let errorMessage = "Unknown error";
+            if (error?.error?.message) {
+                errorMessage = error.error.message;
+            } else if (error?.message) {
+                errorMessage = error.message;
+            } else if (typeof error === 'string') {
+                errorMessage = error;
+            }
+            
+            console.error("Parsed error message:", errorMessage);
+            toast.error("Call error: " + errorMessage);
             setIsInterviewActive(false);
+            hasStartedCall.current = false; // Allow retry
         })
 
         vapiRef.current?.on("message", async (message: any) => {
@@ -411,16 +447,51 @@ Key Guidelines:
             },
         };
    
+        // Validate Vapi instance and API key
+        if (!vapiRef.current) {
+            console.error('❌ Vapi instance not initialized');
+            toast.error('Voice interface not ready. Please refresh the page.');
+            hasStartedCall.current = false;
+            return;
+        }
+        
+        if (!process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY) {
+            console.error('❌ VAPI_PUBLIC_KEY not configured');
+            toast.error('Voice service not configured. Please contact support.');
+            hasStartedCall.current = false;
+            return;
+        }
         
         console.log('📞 Initiating Vapi call...');
+        console.log('Assistant options configured:', {
+            name: assistantOptions.name,
+            hasFirstMessage: !!assistantOptions.firstMessage,
+            transcriber: assistantOptions.transcriber.provider,
+            voice: assistantOptions.voice.provider,
+            model: assistantOptions.model.provider
+        });
+        
         try {
             // @ts-ignore
-            vapiRef.current?.start(assistantOptions);
+            const startPromise = vapiRef.current.start(assistantOptions);
             console.log('✅ Vapi start() called successfully');
-        } catch (error) {
+            
+            // Handle promise if returned
+            if (startPromise && typeof startPromise.then === 'function') {
+                startPromise.catch((err: any) => {
+                    console.error('❌ Vapi start promise rejected:', err);
+                    toast.error('Failed to connect: ' + (err.message || 'Unknown error'));
+                    setIsInterviewActive(false);
+                    hasStartedCall.current = false;
+                });
+            }
+        } catch (error: any) {
             console.error('❌ Failed to start Vapi call:', error);
-            toast.error('Failed to start interview call');
+            console.error('Error type:', typeof error);
+            console.error('Error keys:', Object.keys(error || {}));
+            toast.error('Failed to start interview: ' + (error.message || 'Unknown error'));
             setIsInterviewActive(false);
+            hasStartedCall.current = false;
         }
     }
 
