@@ -351,7 +351,13 @@ function Startinterview() {
             console.error("Error details:", JSON.stringify(error, null, 2));
             
             let errorMessage = "Unknown error";
-            if (error?.error?.message) {
+            
+          
+            if (error?.errorMsg) {
+                errorMessage = error.errorMsg;
+            } else if (error?.error?.msg) {
+                errorMessage = error.error.msg;
+            } else if (error?.error?.message) {
                 errorMessage = error.error.message;
             } else if (error?.message) {
                 errorMessage = error.message;
@@ -359,10 +365,15 @@ function Startinterview() {
                 errorMessage = error;
             }
             
+            
+            if (errorMessage.includes("Meeting has ended") || errorMessage.includes("ejected")) {
+                errorMessage = "Call was immediately ended by Vapi. This usually means: 1) Invalid API key or account issue, 2) Incorrect assistant configuration, or 3) Billing/quota exceeded. Please check your Vapi dashboard.";
+            }
+            
             console.error("Parsed error message:", errorMessage);
-            toast.error("Call error: " + errorMessage);
+            toast.error(errorMessage, { duration: 10000 });
             setIsInterviewActive(false);
-            hasStartedCall.current = false; // Allow retry
+            hasStartedCall.current = false; 
         })
 
         vapiRef.current?.on("message", async (message: any) => {
@@ -380,20 +391,20 @@ function Startinterview() {
         const assistantOptions = {
             name: "AI Recruiter",
             // @ts-ignore
-            firstMessage: "Hi "+user?.fullName+", how are you? Ready for your interview on "+InterviewQuestions?.jobTitle || "Software Engineer" + "?",
+            firstMessage: "Hi "+user?.fullName+", how are you? Ready for your interview on "+(InterviewQuestions?.jobTitle || "Software Engineer")+"?",
             transcriber: {
-                provider: "deepgram" ,
-                model: "nova-2" ,
-                language: "en-US" ,
+                provider: "deepgram",
+                model: "nova-2",
+                language: "en-US",
             },
             voice: {
-                provider: "playht" ,
+                provider: "playht",
                 voiceId: "jennifer",
             },
             model: {
-                // @ts-ignore
-                provider: "openai" ,
-                model: "gpt-4" ,
+                provider: "openai",
+                model: "gpt-3.5-turbo",  // Most commonly available model - try this first
+                // If gpt-3.5-turbo works, you can upgrade to: "gpt-4o" or "gpt-4-turbo"
                 messages: [
                     {
                         role: "system",
@@ -447,7 +458,7 @@ Key Guidelines:
             },
         };
    
-        // Validate Vapi instance and API key
+      
         if (!vapiRef.current) {
             console.error('❌ Vapi instance not initialized');
             toast.error('Voice interface not ready. Please refresh the page.');
@@ -468,15 +479,22 @@ Key Guidelines:
             hasFirstMessage: !!assistantOptions.firstMessage,
             transcriber: assistantOptions.transcriber.provider,
             voice: assistantOptions.voice.provider,
-            model: assistantOptions.model.provider
+            model: assistantOptions.model.provider,
+            modelName: assistantOptions.model.model
         });
+        
+        console.log('⚠️ NOTE: If you see "Meeting has ended" error, you may need to:');
+        console.log('1. Check your Vapi account dashboard for billing/quota issues');
+        console.log('2. Verify that gpt-4o model is available in your account');
+        console.log('3. Check if the voice provider "playht" and voiceId "jennifer" are valid');
+        console.log('4. Consider creating an Assistant in Vapi dashboard and using assistantId instead');
         
         try {
             // @ts-ignore
             const startPromise = vapiRef.current.start(assistantOptions);
             console.log('✅ Vapi start() called successfully');
             
-            // Handle promise if returned
+           
             if (startPromise && typeof startPromise.then === 'function') {
                 startPromise.catch((err: any) => {
                     console.error('❌ Vapi start promise rejected:', err);
@@ -592,7 +610,7 @@ Key Guidelines:
                 const reportData = outputData.interview_analysis_report || outputData;
                 console.log("Report data:", reportData);
                
-                // Normalize snake_case field names
+               
                 if (reportData.final_score !== undefined && reportData.finalScore === undefined) {
                     reportData.finalScore = reportData.final_score;
                 }
@@ -606,22 +624,22 @@ Key Guidelines:
                     reportData.questionWiseJustification = reportData.question_wise_justification;
                 }
                 
-                // Handle nested overall_evaluation object
+               
                 if (reportData.overall_evaluation && typeof reportData.overall_evaluation === 'object') {
                     const evalObj = reportData.overall_evaluation;
                     
-                    // Extract strengths from nested object
+                    
                     if (evalObj.strengths && !reportData.strengths) {
                         reportData.strengths = evalObj.strengths;
                     }
                     
-                    // Handle weaknesses_improvement_areas
+                 
                     if (evalObj.weaknesses_improvement_areas && !reportData.weaknesses) {
                         reportData.weaknesses = evalObj.weaknesses_improvement_areas;
                     }
                 }
                 
-                // Convert arrays to comma-separated strings
+                
                 if (Array.isArray(reportData.strengths)) {
                     reportData.strengths = reportData.strengths.length > 0 
                         ? reportData.strengths.join(', ') 
