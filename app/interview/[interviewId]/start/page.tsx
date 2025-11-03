@@ -165,11 +165,32 @@ function Startinterview() {
     const timerRef = React.useRef<NodeJS.Timeout | null>(null);
     const hasStartedCall = React.useRef(false);
     const vapiRef = React.useRef<Vapi | null>(null);
+    const [micPermissionGranted, setMicPermissionGranted] = useState(false);
     
-    
+    // Request microphone permission on mount
     useEffect(() => {
-        if (!vapiRef.current) {
-            console.log('🔧 Initializing Vapi instance');
+        const requestMicrophonePermission = async () => {
+            try {
+                console.log('🎤 Requesting microphone permission...');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('✅ Microphone permission granted');
+                setMicPermissionGranted(true);
+                // Stop the stream immediately after getting permission
+                stream.getTracks().forEach(track => track.stop());
+            } catch (error) {
+                console.error('❌ Microphone permission denied:', error);
+                toast.error('Microphone access is required for the interview. Please grant permission and reload.');
+                setMicPermissionGranted(false);
+            }
+        };
+        
+        requestMicrophonePermission();
+    }, []);
+    
+    // Initialize Vapi instance after mic permission is granted
+    useEffect(() => {
+        if (!vapiRef.current && micPermissionGranted) {
+            console.log('🔧 Initializing Vapi instance (mic permission granted)');
             const apiKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
             console.log('API Key status:', apiKey ? `Present (length: ${apiKey.length})` : 'MISSING!');
             
@@ -187,7 +208,7 @@ function Startinterview() {
                 toast.error('Failed to initialize voice interface');
             }
         }
-    }, []);
+    }, [micPermissionGranted]);
 
     useEffect(() => {
         GetInterviewQuestions();
@@ -204,29 +225,33 @@ function Startinterview() {
                            user && 
                            !isLoading &&
                            !hasStartedCall.current &&
-                           vapiRef.current; 
+                           vapiRef.current &&
+                           micPermissionGranted; // Wait for microphone permission
+        
         if (canStartCall) {
-            console.log('✅ All data loaded, starting call in 500ms...', {
+            console.log('✅ All data loaded (including mic permission), starting call in 1000ms...', {
                 user: user.fullName,
                 userDetails: userDetails._id,
-                questions: InterviewQuestions.interviewQuestions?.length || 0
+                questions: InterviewQuestions.interviewQuestions?.length || 0,
+                micPermission: micPermissionGranted
             });
             hasStartedCall.current = true;
             
-         
+            // Increased delay to ensure everything is ready
             setTimeout(() => {
                 Startcall();
-            }, 500);
+            }, 1000);
         } else if (!hasStartedCall.current) {
             console.log('⏳ Waiting for data...', {
                 hasQuestions: !!InterviewQuestions?.interviewQuestions?.length,
                 hasUserDetails: !!userDetails,
                 hasUser: !!user,
                 hasVapi: !!vapiRef.current,
+                hasMicPermission: micPermissionGranted,
                 isLoading
             });
         }
-    }, [InterviewQuestions, userDetails, user, isLoading])
+    }, [InterviewQuestions, userDetails, user, isLoading, micPermissionGranted])
 
     
     useEffect(() => {
@@ -351,23 +376,31 @@ function Startinterview() {
             console.error("Error details:", JSON.stringify(error, null, 2));
             
             let errorMessage = "Unknown error";
+            let errorType = error?.error?.type || error?.type;
             
-          
-            if (error?.errorMsg) {
-                errorMessage = error.errorMsg;
-            } else if (error?.error?.msg) {
-                errorMessage = error.error.msg;
-            } else if (error?.error?.message) {
-                errorMessage = error.error.message;
-            } else if (error?.message) {
-                errorMessage = error.message;
-            } else if (typeof error === 'string') {
-                errorMessage = error;
-            }
-            
-            
-            if (errorMessage.includes("Meeting has ended") || errorMessage.includes("ejected")) {
-                errorMessage = "Call was immediately ended by Vapi. This usually means: 1) Invalid API key or account issue, 2) Incorrect assistant configuration, or 3) Billing/quota exceeded. Please check your Vapi dashboard.";
+            // Check for specific error types first
+            if (errorType === 'no-room' || error?.error?.msg?.includes('room was deleted')) {
+                errorMessage = "🚨 VAPI ACCOUNT ISSUE: Your Vapi account is out of credits, has expired, or has billing issues. Please check your Vapi dashboard at https://dashboard.vapi.ai and verify: 1) Active subscription, 2) Available credits, 3) Valid payment method.";
+            } else if (errorType === 'ejected') {
+                errorMessage = "🚨 CALL REJECTED: Vapi rejected the call. This usually means invalid configuration or account issues. Check your Vapi dashboard.";
+            } else {
+                // Parse error message from various locations
+                if (error?.errorMsg) {
+                    errorMessage = error.errorMsg;
+                } else if (error?.error?.msg) {
+                    errorMessage = error.error.msg;
+                } else if (error?.error?.message) {
+                    errorMessage = error.error.message;
+                } else if (error?.message) {
+                    errorMessage = error.message;
+                } else if (typeof error === 'string') {
+                    errorMessage = error;
+                }
+                
+                // Add context for generic "Meeting has ended"
+                if (errorMessage.includes("Meeting has ended")) {
+                    errorMessage = "Call ended immediately. Check your Vapi account for billing/credit issues at https://dashboard.vapi.ai";
+                }
             }
             
             console.error("Parsed error message:", errorMessage);
@@ -403,8 +436,8 @@ function Startinterview() {
             },
             model: {
                 provider: "openai",
-                model: "gpt-3.5-turbo",  // Most commonly available model - try this first
-                // If gpt-3.5-turbo works, you can upgrade to: "gpt-4o" or "gpt-4-turbo"
+                model: "gpt-3.5-turbo",  
+               
                 messages: [
                     {
                         role: "system",
@@ -483,11 +516,13 @@ Key Guidelines:
             modelName: assistantOptions.model.model
         });
         
-        console.log('⚠️ NOTE: If you see "Meeting has ended" error, you may need to:');
-        console.log('1. Check your Vapi account dashboard for billing/quota issues');
-        console.log('2. Verify that gpt-4o model is available in your account');
-        console.log('3. Check if the voice provider "playht" and voiceId "jennifer" are valid');
-        console.log('4. Consider creating an Assistant in Vapi dashboard and using assistantId instead');
+        console.log('⚠️ IMPORTANT: If you see "Meeting has ended" or "no-room" errors:');
+        console.log('🔴 PRIMARY CAUSE: Your Vapi account is likely out of credits or has billing issues!');
+        console.log('✅ SOLUTION: Go to https://dashboard.vapi.ai and:');
+        console.log('   1. Check your account balance/credits');
+        console.log('   2. Verify your subscription is active');
+        console.log('   3. Add payment method or purchase credits');
+        console.log('   4. Check for any account warnings/suspensions');
         
         try {
             // @ts-ignore
@@ -925,13 +960,19 @@ Key Guidelines:
     }
 
     // Show loading state while initializing
-    if (isLoading || !userDetails || !user || !InterviewQuestions) {
+    if (isLoading || !userDetails || !user || !InterviewQuestions || !micPermissionGranted) {
         return (
             <div className='p-20 lg:px-48 xl:px-56'>
                 <div className='flex flex-col items-center justify-center h-[500px]'>
                     <div className='animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600'></div>
-                    <h2 className='mt-4 text-xl font-semibold text-gray-700'>Initializing Interview...</h2>
-                    <p className='mt-2 text-gray-500'>Please wait while we set up your session</p>
+                    <h2 className='mt-4 text-xl font-semibold text-gray-700'>
+                        {!micPermissionGranted ? '🎤 Requesting Microphone Permission...' : 'Initializing Interview...'}
+                    </h2>
+                    <p className='mt-2 text-gray-500'>
+                        {!micPermissionGranted 
+                            ? 'Please allow microphone access to continue' 
+                            : 'Please wait while we set up your session'}
+                    </p>
                 </div>
             </div>
         );
