@@ -207,6 +207,21 @@ function Startinterview() {
 
     
     useEffect(() => {
+        return () => {
+            console.log('🧹 Component unmounting, cleaning up Vapi');
+            if (vapiRef.current) {
+                vapiRef.current.removeAllListeners();
+                try {
+                    vapiRef.current.stop();
+                } catch (e) {
+                    console.log('Error stopping Vapi on unmount:', e);
+                }
+            }
+        };
+    }, [])
+
+    
+    useEffect(() => {
         if (isInterviewActive && timeRemaining > 0) {
             timerRef.current = setInterval(() => {
                 setTimeRemaining((prev) => {
@@ -248,7 +263,17 @@ function Startinterview() {
             console.log('No questions found yet');
             return;
         }
-        // @ts-ignore
+        
+        if (!user || !userDetails) {
+            console.log('❌ User or userDetails not available, aborting call');
+            return;
+        }
+        
+        console.log('🚀 Starting Vapi call with:', {
+            user: user.fullName,
+            userDetails: userDetails._id,
+            jobTitle: InterviewQuestions.jobTitle
+        });
 
         const questions = InterviewQuestions?.interviewQuestions || [];
 
@@ -261,6 +286,58 @@ function Startinterview() {
         limitedQuestions.forEach((q, index) => {
             questionList.push(`${q.question}`);
             console.log(q.question);
+        });
+
+       
+        if (vapiRef.current) {
+            console.log('🧹 Cleaning up old event listeners');
+            vapiRef.current.removeAllListeners();
+        }
+
+        
+        vapiRef.current?.on("call-start",()=> {
+            console.log("✅ Call started successfully");
+            setIsInterviewActive(true);
+            toast.success("Call connected successfully!");
+        })
+
+        vapiRef.current?.on("speech-start",()=> {
+            console.log("Speech started");
+            setUserActive(false);
+        })
+        
+        vapiRef.current?.on("speech-end",()=> {
+            console.log("Speech ended");
+            setUserActive(true);
+        })
+        
+        // @ts-ignore
+        vapiRef.current?.on("call-end", (callData: any)=> {
+            console.log("📞 Call ended with data:", callData);
+            setIsInterviewActive(false);
+            if (callData?.conversation) {
+                console.log("Conversation from call-end:", callData.conversation);
+                conversationRef.current = callData.conversation;
+                setConversationData(callData.conversation);
+            }
+            toast.info("Interview ended.");
+        })
+
+        vapiRef.current?.on("error", (error: any) => {
+            console.error("❌ Vapi error:", error);
+            toast.error("Call error: " + (error.message || "Unknown error"));
+            setIsInterviewActive(false);
+        })
+
+        vapiRef.current?.on("message", async (message: any) => {
+            console.log("New message received:", message);
+            if (message.conversation && Array.isArray(message.conversation)) {
+                console.log("Conversation data:", message.conversation);
+                conversationRef.current = message.conversation;
+                setConversationData(message.conversation);
+            } else if (message.type === "transcript" && message.transcript) {
+                console.log("Transcript:", message.transcript);
+            }
         });
 
         
@@ -334,46 +411,17 @@ Key Guidelines:
             },
         };
    
-        // @ts-ignore
-        vapiRef.current?.start(assistantOptions);
-
-        vapiRef.current?.on("call-start",()=> {
-            console.log("Call started");
-            setIsInterviewActive(true);
-            toast("call connected....")
-        })
-
-        vapiRef.current?.on("speech-start",()=> {
-            console.log("Speech started");
-            setUserActive(false);
-        })
-        vapiRef.current?.on("speech-end",()=> {
-            console.log("Speech ended");
-            setUserActive(true);
-        })
-        // @ts-ignore
-        vapiRef.current?.on("call-end", (callData: any)=> {
-            console.log("Call ended with data:", callData);
-            if (callData?.conversation) {
-                console.log("Conversation from call-end:", callData.conversation);
-                conversationRef.current = callData.conversation;
-                setConversationData(callData.conversation);
-            }
-            toast("Interview ended.");
-        })
-
-        vapiRef.current?.on("message", async (message: any) => {
-            console.log("New message received:", message);
-            if (message.conversation && Array.isArray(message.conversation)) {
-                console.log("Conversation data:", message.conversation);
-                conversationRef.current = message.conversation;
-                setConversationData(message.conversation);
-            } else if (message.type === "transcript" && message.transcript) {
-                console.log("Transcript:", message.transcript);
-            }
-        });
-
         
+        console.log('📞 Initiating Vapi call...');
+        try {
+            // @ts-ignore
+            vapiRef.current?.start(assistantOptions);
+            console.log('✅ Vapi start() called successfully');
+        } catch (error) {
+            console.error('❌ Failed to start Vapi call:', error);
+            toast.error('Failed to start interview call');
+            setIsInterviewActive(false);
+        }
     }
 
 
