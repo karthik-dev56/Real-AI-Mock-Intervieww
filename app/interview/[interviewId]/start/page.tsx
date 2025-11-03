@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 
-// Helper function to parse text-based response from webhook
+
 function parseTextBasedResponse(textData: string): any {
     console.log("=== PARSING TEXT DATA ===");
     console.log("Raw text:", textData);
@@ -29,25 +29,25 @@ function parseTextBasedResponse(textData: string): any {
         const trimmedLine = lines[i].trim();
         console.log("Processing line:", trimmedLine);
         
-        // Skip empty lines or main header
+       
         if (!trimmedLine || trimmedLine === 'interview_analysis' || trimmedLine === 'Interview Analysis Report') {
             continue;
         }
         
-        // Check if this is a numbered section (e.g., "3. Final Score")
+      
         if (/^\d+\.\s/.test(trimmedLine)) {
             currentSection = trimmedLine;
             console.log(`Section: ${currentSection}`);
             continue;
         }
         
-        // Check if line contains a colon (key:value pair)
+ 
         if (trimmedLine.includes(':')) {
             const colonIndex = trimmedLine.indexOf(':');
             const key = trimmedLine.substring(0, colonIndex).trim();
             const value = trimmedLine.substring(colonIndex + 1).trim();
             
-            // Check if this is an array item (e.g., "0:value" or "1:value")
+
             if (/^\d+$/.test(key)) {
                 // It's an array index
                 if (!Array.isArray(result[currentKey])) {
@@ -56,7 +56,7 @@ function parseTextBasedResponse(textData: string): any {
                 result[currentKey].push(value);
                 console.log(`Added to array ${currentKey}: ${value}`);
             } else {
-                // It's a regular key - map to standard field names
+              
                 let mappedKey = key;
                 
                 // Handle numbered section keys
@@ -85,7 +85,7 @@ function parseTextBasedResponse(textData: string): any {
                 console.log(`Set ${mappedKey} = ${value}`);
             }
         } else if (trimmedLine === 'Strengths' || trimmedLine === 'Weaknesses' || trimmedLine === 'Weaknesses / Improvement Areas') {
-            // This is a subsection header for arrays
+            
             currentKey = trimmedLine === 'Strengths' ? 'strengths' : 'weaknesses';
             if (!result[currentKey]) {
                 result[currentKey] = [];
@@ -94,10 +94,10 @@ function parseTextBasedResponse(textData: string): any {
         }
     }
     
-    // Convert finalScore to number
+    
     console.log("Before conversion - finalScore:", result.finalScore, typeof result.finalScore);
     if (result.finalScore && typeof result.finalScore === 'string') {
-        // Handle formats like "12/20" or "12"
+        
         if (result.finalScore.includes('/')) {
             result.finalScore = parseInt(result.finalScore.split('/')[0].trim(), 10);
             console.log("Converted from X/Y format:", result.finalScore);
@@ -107,8 +107,7 @@ function parseTextBasedResponse(textData: string): any {
         }
     }
     console.log("After conversion - finalScore:", result.finalScore);
-    
-    // Convert arrays to comma-separated strings if needed
+   
     if (Array.isArray(result.strengths)) {
         result.strengths = result.strengths.join(', ');
     }
@@ -169,6 +168,26 @@ function Startinterview() {
     const [vapiReady, setVapiReady] = useState(false);
     const [readyToStart, setReadyToStart] = useState(false);
     const [showStartButton, setShowStartButton] = useState(false);
+    const isInitialMount = React.useRef(true);
+    const isInitializingVapi = React.useRef(false);
+    
+  
+    useEffect(() => {
+        console.log('🔄 Component mounted - Resetting all states');
+        hasStartedCall.current = false;
+        isInitializingVapi.current = false;
+        setIsInterviewActive(false);
+        setShowStartButton(false);
+        setReadyToStart(false);
+        setVapiReady(false);
+        isInitialMount.current = true;
+        
+        return () => {
+            console.log('🧹 Component will unmount');
+            isInitialMount.current = false;
+            isInitializingVapi.current = false;
+        };
+    }, []);
     
     useEffect(() => {
         const requestMicrophonePermission = async () => {
@@ -189,9 +208,10 @@ function Startinterview() {
         requestMicrophonePermission();
     }, []);
     
-    // Initialize Vapi instance after mic permission is granted
+
     useEffect(() => {
-        if (!vapiRef.current && micPermissionGranted) {
+        if (!vapiRef.current && micPermissionGranted && !isInitializingVapi.current) {
+            isInitializingVapi.current = true; 
             console.log('🔧 Initializing Vapi instance (mic permission granted)');
             const apiKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
             console.log('API Key status:', apiKey ? `Present (length: ${apiKey.length})` : 'MISSING!');
@@ -199,33 +219,51 @@ function Startinterview() {
             if (!apiKey) {
                 console.error('❌ NEXT_PUBLIC_VAPI_PUBLIC_KEY is not set!');
                 toast.error('Voice service API key not configured');
+                isInitializingVapi.current = false;
                 return;
             }
             
            
             setTimeout(() => {
                 try {
+                    
+                    if (vapiRef.current) {
+                        console.log('🧹 Cleaning up existing Vapi instance');
+                        vapiRef.current.removeAllListeners();
+                        try {
+                            vapiRef.current.stop();
+                        } catch (e) {
+                            console.log('Error stopping existing instance:', e);
+                        }
+                        vapiRef.current = null;
+                    }
+                    
                     vapiRef.current = new Vapi(apiKey);
                     console.log('✅ Vapi instance created successfully');
+                  
                     setTimeout(() => {
                         setVapiReady(true);
+                        isInitializingVapi.current = false; 
                         console.log('✅ Vapi is now ready to start calls');
                     }, 800);
                 } catch (error) {
                     console.error('❌ Failed to create Vapi instance:', error);
-                    toast.error('Failed to initialize voice interface');
+                    toast.error('Failed to initialize voice interface. Please refresh the page.');
+                    isInitializingVapi.current = false;
                 }
             }, 500); 
         }
-    }, [micPermissionGranted]);
-
-    useEffect(() => {
-        GetInterviewQuestions();
+    }, [micPermissionGranted]);    useEffect(() => {
+        if (interviewId) {
+            GetInterviewQuestions();
+        }
     }, [interviewId])
 
     useEffect(() => {
-        Resultsdata();
-    }, [Resultdata])
+        if (interviewId) {
+            Resultsdata();
+        }
+    }, [interviewId])
 
     
     useEffect(() => {
@@ -268,7 +306,13 @@ function Startinterview() {
 
     const handleStartInterview = () => {
         if (hasStartedCall.current) {
-            console.log('⚠️ Call already started');
+            console.log('⚠️ Call already started, ignoring duplicate click');
+            return;
+        }
+        
+        if (!vapiRef.current) {
+            console.log('❌ Vapi not ready yet');
+            toast.error('Voice interface not ready. Please wait a moment and try again.');
             return;
         }
         
@@ -292,7 +336,10 @@ function Startinterview() {
                 } catch (e) {
                     console.log('Error stopping Vapi on unmount:', e);
                 }
+                vapiRef.current = null;
             }
+       
+            hasStartedCall.current = false;
         };
     }, [])
 
@@ -348,7 +395,10 @@ function Startinterview() {
         console.log('🚀 Starting Vapi call with:', {
             user: user.fullName,
             userDetails: userDetails._id,
-            jobTitle: InterviewQuestions.jobTitle
+            jobTitle: InterviewQuestions.jobTitle,
+            hasVapiInstance: !!vapiRef.current,
+            vapiReady: vapiReady,
+            micPermission: micPermissionGranted
         });
 
         const questions = InterviewQuestions?.interviewQuestions || [];
@@ -366,8 +416,16 @@ function Startinterview() {
 
        
         if (vapiRef.current) {
-            console.log('🧹 Cleaning up old event listeners');
+            console.log('🧹 Cleaning up old event listeners before starting new call');
             vapiRef.current.removeAllListeners();
+            
+            // Try to stop any existing call first
+            try {
+                vapiRef.current.stop();
+                console.log('✅ Stopped any existing call');
+            } catch (e) {
+                console.log('ℹ️ No existing call to stop (this is normal)');
+            }
         }
 
         
@@ -391,6 +449,7 @@ function Startinterview() {
         vapiRef.current?.on("call-end", (callData: any)=> {
             console.log("📞 Call ended with data:", callData);
             setIsInterviewActive(false);
+            hasStartedCall.current = false; // Reset so user could potentially start again
             if (callData?.conversation) {
                 console.log("Conversation from call-end:", callData.conversation);
                 conversationRef.current = callData.conversation;
@@ -405,12 +464,24 @@ function Startinterview() {
             
             let errorMessage = "Unknown error";
             let errorType = error?.error?.type || error?.type;
-            
+            let shouldResetButton = true;
+           
+            const isTransientError = errorType === 'no-room' || 
+                                    errorType === 'daily-call-join-error' ||
+                                    error?.errorMsg?.includes("Meeting has ended");
         
             if (errorType === 'no-room' || error?.error?.msg?.includes('room was deleted')) {
                 errorMessage = "🚨 VAPI ACCOUNT ISSUE: Your Vapi account is out of credits, has expired, or has billing issues. Please check your Vapi dashboard at https://dashboard.vapi.ai and verify: 1) Active subscription, 2) Available credits, 3) Valid payment method.";
             } else if (errorType === 'ejected') {
-                errorMessage = "🚨 CALL REJECTED: Vapi rejected the call. This usually means invalid configuration or account issues. Check your Vapi dashboard.";
+                errorMessage = "🚨 VAPI ACCOUNT ISSUE: Your Vapi account rejected this call. Common causes:\n1. Out of credits or trial expired\n2. Payment method issue\n3. Account suspended\n4. Invalid API key\n\nPlease check your Vapi dashboard at https://dashboard.vapi.ai/billing";
+                console.error("🔍 EJECTED ERROR - Check your Vapi account status!");
+                console.error("Visit: https://dashboard.vapi.ai/billing");
+            } else if (errorType === 'daily-call-join-error') {
+                errorMessage = "Connection failed. This might be a temporary issue. Please try again in a moment.";
+                shouldResetButton = true;
+            } else if (errorType === 'start-method-error') {
+                errorMessage = "Failed to start call. Please refresh the page and try again.";
+                shouldResetButton = true;
             } else {
                
                 if (error?.errorMsg) {
@@ -427,14 +498,23 @@ function Startinterview() {
                 
                 
                 if (errorMessage.includes("Meeting has ended")) {
-                    errorMessage = "Call ended immediately. Check your Vapi account for billing/credit issues at https://dashboard.vapi.ai";
+                    errorMessage = "Call connection issue detected. Please refresh the page and ensure your Vapi account is active.";
                 }
             }
             
             console.error("Parsed error message:", errorMessage);
             toast.error(errorMessage, { duration: 10000 });
             setIsInterviewActive(false);
-            hasStartedCall.current = false; 
+            
+            
+            console.log("🔄 Resetting button after error - user can try again");
+            hasStartedCall.current = false;
+            
+           
+            setTimeout(() => {
+                setShowStartButton(true);
+                setReadyToStart(true);
+            }, 1000);
         })
 
         vapiRef.current?.on("message", async (message: any) => {
@@ -575,13 +655,18 @@ Key Guidelines:
 
 
     const Resultsdata = async() => {
-        const result = await convex.query(api.Result.GetResults, {
-            // @ts-ignore
-            resultRecordId: interviewId
-        })
+        try {
+            const result = await convex.query(api.Result.GetResults, {
+                // @ts-ignore
+                resultRecordId: interviewId
+            })
 
-        console.log("Result Data:", result)
-        setResultsdata(result)
+            console.log("Result Data:", result)
+            setResultsdata(result)
+        } catch (error) {
+            console.log("No existing results found (this is normal for new interviews):", error)
+            
+        }
     }
 
     
@@ -1041,16 +1126,28 @@ Key Guidelines:
             </div>
 
             
-            {showStartButton && !isInterviewActive ? (
+            {showStartButton && !isInterviewActive && !hasStartedCall.current ? (
                 <div className='flex flex-col items-center justify-center gap-5 mt-6'>
                     <button 
                         onClick={handleStartInterview}
-                        className='px-8 py-4 bg-black-600 hover:bg-black-700 text-white font-bold text-xl rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3'
+                        disabled={!vapiReady || !micPermissionGranted || hasStartedCall.current}
+                        className={`px-8 py-4 bg-black hover:bg-gray-900 text-white font-bold text-xl rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3 ${
+                            !vapiReady || !micPermissionGranted || hasStartedCall.current ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                     >
                         <Phone className='h-6 w-6' />
                         Start Interview
                     </button>
-                    <p className='text-gray-600 text-sm'>Click to begin your AI interview session</p>
+                    <p className='text-gray-600 text-sm'>
+                        {!micPermissionGranted 
+                            ? '⚠️ Microphone permission required' 
+                            : !vapiReady 
+                            ? '⏳ Preparing voice interface...' 
+                            : 'Click to begin your AI interview session'}
+                    </p>
+                    <p className='text-gray-500 text-xs mt-2 max-w-md text-center'>
+                        If you encounter connection issues, please refresh the page and try again.
+                    </p>
                 </div>
             ) : isInterviewActive ? (
                 <>
@@ -1064,6 +1161,14 @@ Key Guidelines:
                         <p className='text-gray-500 text-lg'>Interview in progress...</p>
                     </div>
                 </>
+            ) : hasStartedCall.current && !isInterviewActive ? (
+                <div className='flex flex-col items-center justify-center gap-5 mt-6'>
+                    <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600'></div>
+                    <p className='text-gray-600 text-lg'>Connecting to interview...</p>
+                    <p className='text-gray-500 text-xs mt-2 max-w-md text-center'>
+                        This may take a few seconds. Please wait...
+                    </p>
+                </div>
             ) : null}
 
         </div>
