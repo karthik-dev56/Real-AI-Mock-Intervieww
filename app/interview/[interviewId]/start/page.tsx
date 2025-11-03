@@ -151,7 +151,7 @@ function Startinterview() {
     const [InterviewQuestions, setInterviewQuestions] = useState<InterviewData>()
     const { interviewId } = useParams();
     const convex = useConvex();
-    const { userDetails, setUserDetails } = useContext(UserDetailContext);
+    const { userDetails, setUserDetails, isLoading } = useContext(UserDetailContext);
     const { user } = useUser();
     const[userActive,setUserActive]=useState(false)
     const [conversationData, setConversationData] = useState<any[]>([]);
@@ -163,6 +163,7 @@ function Startinterview() {
     const [isInterviewActive, setIsInterviewActive] = useState(false);
     const [earlyExit, setEarlyExit] = useState(false);
     const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+    const hasStartedCall = React.useRef(false);
 
     const vapiRef = React.useRef<Vapi | null>(null);
     if (!vapiRef.current) {
@@ -178,10 +179,31 @@ function Startinterview() {
     }, [Resultdata])
 
     useEffect(() => {
-        if (InterviewQuestions?.interviewQuestions && InterviewQuestions.interviewQuestions.length > 0) {
+       
+        const canStartCall = InterviewQuestions?.interviewQuestions && 
+                           InterviewQuestions.interviewQuestions.length > 0 && 
+                           userDetails && 
+                           user && 
+                           !isLoading &&
+                           !hasStartedCall.current;
+        
+        if (canStartCall) {
+            console.log('✅ All data loaded, starting call...', {
+                user: user.fullName,
+                userDetails: userDetails._id,
+                questions: InterviewQuestions.interviewQuestions?.length || 0
+            });
+            hasStartedCall.current = true;
             Startcall();
+        } else if (!hasStartedCall.current) {
+            console.log('⏳ Waiting for data...', {
+                hasQuestions: !!InterviewQuestions?.interviewQuestions?.length,
+                hasUserDetails: !!userDetails,
+                hasUser: !!user,
+                isLoading
+            });
         }
-    }, [InterviewQuestions])
+    }, [InterviewQuestions, userDetails, user, isLoading])
 
     
     useEffect(() => {
@@ -763,6 +785,19 @@ Key Guidelines:
             console.error("Error sending to webhook:", e);
             toast.error("Failed to save interview data");
         }
+    }
+
+    // Show loading state while initializing
+    if (isLoading || !userDetails || !user || !InterviewQuestions) {
+        return (
+            <div className='p-20 lg:px-48 xl:px-56'>
+                <div className='flex flex-col items-center justify-center h-[500px]'>
+                    <div className='animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600'></div>
+                    <h2 className='mt-4 text-xl font-semibold text-gray-700'>Initializing Interview...</h2>
+                    <p className='mt-2 text-gray-500'>Please wait while we set up your session</p>
+                </div>
+            </div>
+        );
     }
 
     return (
