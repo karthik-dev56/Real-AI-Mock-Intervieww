@@ -494,11 +494,11 @@ function Startinterview() {
                                     error?.errorMsg?.includes("Meeting has ended");
         
             if (errorType === 'no-room' || error?.error?.msg?.includes('room was deleted')) {
-                errorMessage = "VAPI ACCOUNT ISSUE: Your Vapi account is out of credits, has expired, or has billing issues.";
-                isConnectionError = false;
+                errorMessage = "Connection issue detected. Please reload the page.";
+                isConnectionError = true;
             } else if (errorType === 'ejected') {
-                errorMessage = "VAPI ACCOUNT ISSUE: Your Vapi account rejected this call. Check your billing and subscription.";
-                isConnectionError = false;
+                errorMessage = "Connection issue detected. Please reload the page.";
+                isConnectionError = true;
             } else if (errorType === 'daily-call-join-error' || errorType === 'start-method-error') {
                 errorMessage = "Connection Failed - Internet Issue";
                 isConnectionError = true;
@@ -527,8 +527,13 @@ function Startinterview() {
             hasStartedCall.current = false;
             
             if (isConnectionError) {
-                setConnectionErrorMessage(errorMessage);
-                setShowConnectionError(true);
+                toast.error(errorMessage + " Please reload the page (F5) and try again.", { 
+                    duration: 8000,
+                    action: {
+                        label: 'Reload',
+                        onClick: () => window.location.reload()
+                    }
+                });
             } else {
                 toast.error(errorMessage, { duration: 10000 });
             }
