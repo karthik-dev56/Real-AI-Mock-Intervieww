@@ -123,7 +123,7 @@ export const ResultsPDF = ({ resultData, userName, interviewDate }: ResultsPDFPr
                 <View style={styles.scoreContainer}>
                 <Text style={styles.scoreLabel}>Final Score</Text>
                 <Text style={styles.scoreValue}>
-                    {resultData.finalScore || 0}/10
+                    {resultData.finalScore || 0}/20
                 </Text>
             </View>
 
