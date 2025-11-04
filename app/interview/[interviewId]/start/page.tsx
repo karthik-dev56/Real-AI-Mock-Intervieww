@@ -50,7 +50,7 @@ function parseTextBasedResponse(textData: string): any {
             
 
             if (/^\d+$/.test(key)) {
-                // It's an array index
+               
                 if (!Array.isArray(result[currentKey])) {
                     result[currentKey] = [];
                 }
@@ -60,7 +60,7 @@ function parseTextBasedResponse(textData: string): any {
               
                 let mappedKey = key;
                 
-                // Handle numbered section keys
+               
                 if (key.startsWith('1.') || key.includes('Question-wise')) {
                     mappedKey = 'questionWiseJustification';
                 } else if (key === 'Score') {
@@ -571,7 +571,7 @@ function Startinterview() {
             },
             model: {
                 provider: "openai",
-                model: "gpt-3.5-turbo",  
+                model: "gpt-4o",  
                
                 messages: [
                     {
@@ -795,6 +795,17 @@ Key Guidelines:
                     reportData.questionWiseJustification = reportData.question_wise_justification;
                 }
                 
+                
+                delete reportData.final_score;
+                delete reportData.overall_performance;
+                delete reportData.reason_for_deduction;
+                delete reportData.question_wise_justification;
+                
+                if (reportData.justification && !reportData.questionWiseJustification) {
+                    reportData.questionWiseJustification = reportData.justification;
+                }
+                delete reportData.justification;
+                
                
                 if (reportData.overall_evaluation && typeof reportData.overall_evaluation === 'object') {
                     const evalObj = reportData.overall_evaluation;
@@ -858,12 +869,7 @@ Key Guidelines:
                     reportData.conclusion = reportData['5. Conclusion'];
                 }
                 
-                
-                if (reportData.justification && !reportData.questionWiseJustification) {
-                    reportData.questionWiseJustification = reportData.justification;
-                }
-                
-                console.log("Report data after extraction:", reportData);
+                console.log("Report data after extraction and cleanup:", reportData);
                 
                
                 const extractData = () => {
