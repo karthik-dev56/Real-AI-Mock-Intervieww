@@ -172,27 +172,15 @@ function Startinterview() {
     const isInitialMount = React.useRef(true);
     const isInitializingVapi = React.useRef(false);
     const [showWelcomePopup, setShowWelcomePopup] = useState(false);
-    const [isReloading, setIsReloading] = useState(false);
-    const shouldAutoStartRef = React.useRef(false);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [showConnectionError, setShowConnectionError] = useState(false);
+    const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
     
 
     useEffect(() => {
-        const shouldAutoStart = sessionStorage.getItem('autoStartInterview');
-        if (shouldAutoStart === 'true') {
-            console.log('🔄 Auto-start detected after reload');
-            shouldAutoStartRef.current = true;
-            sessionStorage.removeItem('autoStartInterview'); 
-         
-            sessionStorage.setItem('hasSeenInterviewWelcome', 'true');
-        }
-    }, []);
-    
-    useEffect(() => {
         const hasSeenWelcome = sessionStorage.getItem('hasSeenInterviewWelcome');
-        const shouldAutoStart = sessionStorage.getItem('autoStartInterview');
         
-        
-        if (!hasSeenWelcome && shouldAutoStart !== 'true') {
+        if (!hasSeenWelcome) {
             setTimeout(() => {
                 setShowWelcomePopup(true);
             }, 1000);
@@ -319,25 +307,10 @@ function Startinterview() {
             });
             setReadyToStart(true);
             
-    
-            if (shouldAutoStartRef.current) {
-                console.log('🚀 Auto-starting interview after reload...');
-                shouldAutoStartRef.current = false;
-                toast.success('Starting your interview automatically...');
-                setTimeout(() => {
-                   
-                    hasStartedCall.current = true;
-                    setShowStartButton(false);
-                    setTimeout(() => {
-                        Startcall();
-                    }, 500);
-                }, 1500);
-            } else {
-                setTimeout(() => {
-                    setShowStartButton(true);
-                    console.log('✅ Ready to start interview - waiting for user to click button');
-                }, 1000);
-            }
+            setTimeout(() => {
+                setShowStartButton(true);
+                console.log('✅ Ready to start interview - waiting for user to click button');
+            }, 1000);
         } else if (!readyToStart) {
             console.log('⏳ Waiting for data...', {
                 hasQuestions: !!InterviewQuestions?.interviewQuestions?.length,
@@ -353,8 +326,8 @@ function Startinterview() {
     
 
     const handleStartInterview = () => {
-        if (hasStartedCall.current) {
-            console.log('⚠️ Call already started, ignoring duplicate click');
+        if (hasStartedCall.current || isConnecting) {
+            console.log('⚠️ Call already started or connecting, ignoring duplicate click');
             return;
         }
         
@@ -364,27 +337,8 @@ function Startinterview() {
             return;
         }
         
-        // Check if this is first click (before reload)
-        const hasReloaded = sessionStorage.getItem('hasReloadedForInterview');
-        
-        if (!hasReloaded) {
-            console.log('� First click - Setting up auto-reload and starting interview...');
-            setIsReloading(true);
-            
-          
-            sessionStorage.setItem('autoStartInterview', 'true');
-            sessionStorage.setItem('hasReloadedForInterview', 'true');
-            
-            toast.info('Refreshing page for optimal connection...');
-            
-            
-            setTimeout(() => {
-                window.location.reload();
-            }, 800);
-            return;
-        }
-        
-        console.log('🚀 Starting interview (after reload)');
+        console.log('🚀 Starting interview...');
+        setIsConnecting(true);
         hasStartedCall.current = true;
         setShowStartButton(false);
         
@@ -487,7 +441,7 @@ function Startinterview() {
             console.log('🧹 Cleaning up old event listeners before starting new call');
             vapiRef.current.removeAllListeners();
             
-            // Try to stop any existing call first
+          
             try {
                 vapiRef.current.stop();
                 console.log('✅ Stopped any existing call');
@@ -500,6 +454,7 @@ function Startinterview() {
         vapiRef.current?.on("call-start",()=> {
             console.log("✅ Call started successfully");
             setIsInterviewActive(true);
+            setIsConnecting(false);
             toast.success("Call connected successfully!");
         })
 
@@ -532,26 +487,22 @@ function Startinterview() {
             
             let errorMessage = "Unknown error";
             let errorType = error?.error?.type || error?.type;
-            let shouldResetButton = true;
+            let isConnectionError = false;
            
             const isTransientError = errorType === 'no-room' || 
                                     errorType === 'daily-call-join-error' ||
                                     error?.errorMsg?.includes("Meeting has ended");
         
             if (errorType === 'no-room' || error?.error?.msg?.includes('room was deleted')) {
-                errorMessage = "🚨 VAPI ACCOUNT ISSUE: Your Vapi account is out of credits, has expired, or has billing issues. Please check your Vapi dashboard at https://dashboard.vapi.ai and verify: 1) Active subscription, 2) Available credits, 3) Valid payment method.";
+                errorMessage = "VAPI ACCOUNT ISSUE: Your Vapi account is out of credits, has expired, or has billing issues.";
+                isConnectionError = false;
             } else if (errorType === 'ejected') {
-                errorMessage = "🚨 VAPI ACCOUNT ISSUE: Your Vapi account rejected this call. Common causes:\n1. Out of credits or trial expired\n2. Payment method issue\n3. Account suspended\n4. Invalid API key\n\nPlease check your Vapi dashboard at https://dashboard.vapi.ai/billing";
-                console.error("🔍 EJECTED ERROR - Check your Vapi account status!");
-                console.error("Visit: https://dashboard.vapi.ai/billing");
-            } else if (errorType === 'daily-call-join-error') {
-                errorMessage = "Connection failed. This might be a temporary issue. Please try again in a moment.";
-                shouldResetButton = true;
-            } else if (errorType === 'start-method-error') {
-                errorMessage = "Failed to start call. Please refresh the page and try again.";
-                shouldResetButton = true;
+                errorMessage = "VAPI ACCOUNT ISSUE: Your Vapi account rejected this call. Check your billing and subscription.";
+                isConnectionError = false;
+            } else if (errorType === 'daily-call-join-error' || errorType === 'start-method-error') {
+                errorMessage = "Connection Failed - Internet Issue";
+                isConnectionError = true;
             } else {
-               
                 if (error?.errorMsg) {
                     errorMessage = error.errorMsg;
                 } else if (error?.error?.msg) {
@@ -564,21 +515,24 @@ function Startinterview() {
                     errorMessage = error;
                 }
                 
-                
-                if (errorMessage.includes("Meeting has ended")) {
-                    errorMessage = "Call connection issue detected. Please refresh the page and ensure your Vapi account is active.";
+                if (errorMessage.includes("Meeting has ended") || errorMessage.toLowerCase().includes("connection")) {
+                    errorMessage = "Connection Failed - Internet Issue";
+                    isConnectionError = true;
                 }
             }
             
             console.error("Parsed error message:", errorMessage);
-            toast.error(errorMessage, { duration: 10000 });
             setIsInterviewActive(false);
-            
-            
-            console.log("🔄 Resetting button after error - user can try again");
+            setIsConnecting(false);
             hasStartedCall.current = false;
             
-           
+            if (isConnectionError) {
+                setConnectionErrorMessage(errorMessage);
+                setShowConnectionError(true);
+            } else {
+                toast.error(errorMessage, { duration: 10000 });
+            }
+            
             setTimeout(() => {
                 setShowStartButton(true);
                 setReadyToStart(true);
@@ -1140,25 +1094,38 @@ Key Guidelines:
     if (isLoading || !userDetails || !user || !InterviewQuestions || !micPermissionGranted || !vapiReady) {
         let loadingMessage = 'Initializing Interview...';
         let subMessage = 'Please wait while we set up your session';
+        let icon = '⚙️';
         
         if (!micPermissionGranted) {
-            loadingMessage = '🎤 Requesting Microphone Permission...';
+            loadingMessage = 'Requesting Microphone Permission...';
             subMessage = 'Please allow microphone access to continue';
+            icon = '🎤';
         } else if (!vapiReady) {
-            loadingMessage = '🔧 Setting up voice interface...';
+            loadingMessage = 'Setting up voice interface...';
             subMessage = 'Preparing your interview session';
+            icon = '🔧';
         }
         
         return (
             <div className='p-20 lg:px-48 xl:px-56'>
                 <div className='flex flex-col items-center justify-center h-[500px]'>
-                    <div className='animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600'></div>
-                    <h2 className='mt-4 text-xl font-semibold text-gray-700'>
+                    <div className='relative mb-8'>
+                        <div className='animate-spin rounded-full h-20 w-20 border-4 border-primary/30 border-t-primary'></div>
+                        <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-3xl'>
+                            {icon}
+                        </div>
+                    </div>
+                    <h2 className='text-2xl font-bold text-foreground mb-2'>
                         {loadingMessage}
                     </h2>
-                    <p className='mt-2 text-gray-500'>
+                    <p className='text-muted-foreground'>
                         {subMessage}
                     </p>
+                    <div className='mt-6 flex gap-2'>
+                        <div className='w-3 h-3 bg-primary rounded-full animate-bounce'></div>
+                        <div className='w-3 h-3 bg-primary rounded-full animate-bounce' style={{animationDelay: '0.1s'}}></div>
+                        <div className='w-3 h-3 bg-primary rounded-full animate-bounce' style={{animationDelay: '0.2s'}}></div>
+                    </div>
                 </div>
             </div>
         );
@@ -1166,65 +1133,124 @@ Key Guidelines:
 
     return (
         <div className='p-20 lg:px-48 xl:px-56'>
+            {/* Connection Error Popup */}
+            {showConnectionError && (
+                <div className='fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200'>
+                    <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-xl w-full p-8 relative border-4 border-red-500 animate-in zoom-in slide-in-from-top duration-300'>
+                        <button 
+                            onClick={() => setShowConnectionError(false)}
+                            className='absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors'
+                        >
+                            <X className='h-6 w-6' />
+                        </button>
+                        
+                        <div className='flex flex-col items-center text-center mb-6'>
+                            <div className='bg-red-100 dark:bg-red-900/30 p-4 rounded-full mb-4 animate-pulse'>
+                                <AlertCircle className='h-16 w-16 text-red-600 dark:text-red-400' />
+                            </div>
+                            <h2 className='text-3xl font-bold text-red-600 dark:text-red-400 mb-2'>
+                                Connection Failed!
+                            </h2>
+                            <p className='text-xl font-semibold text-gray-700 dark:text-gray-300'>
+                                Internet Connection Issue Detected
+                            </p>
+                        </div>
+                        
+                        <div className='bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-600 rounded-xl p-6 mb-6'>
+                            <div className='flex items-start gap-3 mb-4'>
+                                <RefreshCw className='h-6 w-6 text-yellow-600 dark:text-yellow-400 mt-1 flex-shrink-0' />
+                                <div>
+                                    <h3 className='text-lg font-bold text-yellow-900 dark:text-yellow-200 mb-2'>
+                                        📋 How to Fix This Issue:
+                                    </h3>
+                                    <ol className='text-yellow-900 dark:text-yellow-100 space-y-2 text-sm'>
+                                        <li className='flex items-start gap-2'>
+                                            <span className='font-bold text-lg'>1.</span>
+                                            <span><strong>Reload this page</strong> (Press F5 or Ctrl+R / Cmd+R)</span>
+                                        </li>
+                                        <li className='flex items-start gap-2'>
+                                            <span className='font-bold text-lg'>2.</span>
+                                            <span>Wait for the page to fully load</span>
+                                        </li>
+                                        <li className='flex items-start gap-2'>
+                                            <span className='font-bold text-lg'>3.</span>
+                                            <span>Click <strong>"Start Interview"</strong> button again</span>
+                                        </li>
+                                    </ol>
+                                </div>
+                            </div>
+                            
+                            <div className='bg-white dark:bg-gray-700 rounded-lg p-4 mt-4 border-l-4 border-green-500'>
+                                <p className='text-sm font-semibold text-green-700 dark:text-green-300 flex items-center gap-2'>
+                                    <span className='text-2xl'>✅</span>
+                                    <span>This works 100% of the time for new users!</span>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className='flex flex-col gap-3'>
+                            <button
+                                onClick={() => window.location.reload()}
+                                className='w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-lg rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-3'
+                            >
+                                <RefreshCw className='h-6 w-6' />
+                                Reload Page Now
+                            </button>
+                            <button
+                                onClick={() => setShowConnectionError(false)}
+                                className='w-full px-6 py-3 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 font-semibold rounded-xl transition-all duration-200'
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Welcome Popup for First-Time Users */}
             {showWelcomePopup && (
-                <div className='fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4'>
-                    <div className='bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative animate-in fade-in zoom-in duration-300'>
+                <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+                    <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative animate-in fade-in zoom-in duration-300'>
                         <button 
                             onClick={handleCloseWelcomePopup}
-                            className='absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors'
+                            className='absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors'
                         >
                             <X className='h-6 w-6' />
                         </button>
                         
                         <div className='flex items-start gap-4 mb-6'>
-                            <div className='bg-blue-100 p-3 rounded-full'>
-                                <AlertCircle className='h-8 w-8 text-blue-600' />
+                            <div className='bg-primary/10 p-3 rounded-full'>
+                                <AlertCircle className='h-8 w-8 text-primary' />
                             </div>
                             <div className='flex-1'>
-                                <h2 className='text-2xl font-bold text-gray-900 mb-2'>
+                                <h2 className='text-2xl font-bold text-foreground mb-2'>
                                     Welcome to Your AI Interview! 🎙️
                                 </h2>
-                                <p className='text-gray-600 text-lg'>
+                                <p className='text-muted-foreground text-lg'>
                                     Before you begin, please read these important instructions:
                                 </p>
                             </div>
                         </div>
                         
                         <div className='space-y-4 mb-6'>
-                            <div className='bg-blue-50 border-l-4 border-blue-500 p-4 rounded'>
+                            <div className='bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded'>
                                 <div className='flex items-start gap-3'>
-                                    <RefreshCw className='h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0' />
+                                    <AlertCircle className='h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0' />
                                     <div>
-                                        <h3 className='font-semibold text-blue-900 mb-1'>
-                                            ✨ Automatic Connection Optimization
+                                        <h3 className='font-semibold text-yellow-900 dark:text-yellow-200 mb-1'>
+                                            ⚠️ First-Time Users: Connection Tips
                                         </h3>
-                                        <p className='text-blue-800 text-sm'>
-                                            When you click <span className='font-bold'>"Start Interview"</span>, the page will automatically refresh to ensure the best connection. 
-                                            Your interview will then start immediately. <span className='font-bold'>No need to do anything - just wait!</span>
+                                        <p className='text-yellow-800 dark:text-yellow-300 text-sm'>
+                                            If the connection fails on your first attempt, simply <span className='font-bold'>reload the page (F5)</span> and click 
+                                            "Start Interview" again. <span className='font-bold'>This works 100% of the time!</span>
                                         </p>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div className='bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded'>
-                                <div className='flex items-start gap-3'>
-                                    <AlertCircle className='h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0' />
-                                    <div>
-                                        <h3 className='font-semibold text-yellow-900 mb-1'>
-                                            ⚠️ If Connection Still Fails
-                                        </h3>
-                                        <p className='text-yellow-800 text-sm'>
-                                            In rare cases, if you see errors after the auto-reload, 
-                                            <span className='font-bold'> manually refresh (F5/Ctrl+R)</span> and try again.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className='bg-blue-50 border-l-4 border-blue-400 p-4 rounded'>
-                                <h3 className='font-semibold text-blue-900 mb-2'>✅ Before You Start:</h3>
-                                <ul className='text-blue-800 text-sm space-y-2'>
+                            <div className='bg-primary/5 border-l-4 border-primary p-4 rounded'>
+                                <h3 className='font-semibold text-foreground mb-2'>✅ Before You Start:</h3>
+                                <ul className='text-muted-foreground text-sm space-y-2'>
                                     <li className='flex items-start gap-2'>
                                         <span className='font-bold mt-0.5'>•</span>
                                         <span>Grant microphone permission when prompted</span>
@@ -1244,9 +1270,9 @@ Key Guidelines:
                                 </ul>
                             </div>
                             
-                            <div className='bg-green-50 border-l-4 border-green-400 p-4 rounded'>
-                                <h3 className='font-semibold text-green-900 mb-2'>💡 Pro Tips:</h3>
-                                <ul className='text-green-800 text-sm space-y-2'>
+                            <div className='bg-green-50 dark:bg-green-900/20 border-l-4 border-green-400 p-4 rounded'>
+                                <h3 className='font-semibold text-green-900 dark:text-green-200 mb-2'>💡 Pro Tips:</h3>
+                                <ul className='text-green-800 dark:text-green-300 text-sm space-y-2'>
                                     <li className='flex items-start gap-2'>
                                         <span className='font-bold mt-0.5'>•</span>
                                         <span>Wait for the AI to finish asking before answering</span>
@@ -1257,7 +1283,7 @@ Key Guidelines:
                                     </li>
                                     <li className='flex items-start gap-2'>
                                         <span className='font-bold mt-0.5'>•</span>
-                                        <span>If you face issues, refresh and restart - your progress won't be lost</span>
+                                        <span>If you face issues, refresh and restart</span>
                                     </li>
                                 </ul>
                             </div>
@@ -1266,7 +1292,7 @@ Key Guidelines:
                         <div className='flex gap-3 justify-end'>
                             <button
                                 onClick={handleCloseWelcomePopup}
-                                className='px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 flex items-center gap-2'
+                                className='px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 flex items-center gap-2'
                             >
                                 Got it! Let's Start
                                 <span className='text-xl'>→</span>
@@ -1276,92 +1302,129 @@ Key Guidelines:
                 </div>
             )}
             
-            <h2 className='flex font-bold text-xl justify-between'> AI Interview Session
-                <span className={`flex gap-2 items-center ${timeRemaining < 60 ? 'text-red-600 animate-pulse' : timeRemaining < 180 ? 'text-orange-500' : 'text-green-600'}`}>
-                    <Timer />
+            <h2 className='flex font-bold text-2xl justify-between text-foreground'> 
+                <span className='flex items-center gap-2'>
+                    🎙️ AI Interview Session
+                </span>
+                <span className={`flex gap-2 items-center font-mono ${
+                    timeRemaining < 60 
+                        ? 'text-destructive animate-pulse' 
+                        : timeRemaining < 180 
+                        ? 'text-orange-500 dark:text-orange-400' 
+                        : 'text-green-600 dark:text-green-400'
+                }`}>
+                    <Timer className='h-5 w-5' />
                     {formatTime(timeRemaining)}
                 </span>
             </h2>
 
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-7 mt-3'>
-                <div className='bg-gray-100 h-[400px] rounded-lg border flex flex-col items-center justify-center'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-7 mt-6'>
+                <div className='bg-card border-2 border-border h-[400px] rounded-xl shadow-lg flex flex-col items-center justify-center transition-all hover:shadow-xl'>
                     <div className='relative'>
-                       {!userActive && <span className='absolute inset-0 rounded-full bg-blue-500 opacity-75 animate-ping' />}
-                    <Image src={'/ai9.png'} alt='AI Image' width={100} height={100} className='w-[60px] h-[60px] rounded-full object-cover' />
+                       {!userActive && (
+                           <>
+                               <span className='absolute inset-0 rounded-full bg-primary/30 opacity-75 animate-ping' />
+                               <span className='absolute inset-0 rounded-full bg-primary/20 opacity-50 animate-pulse' />
+                           </>
+                       )}
+                       <div className='relative rounded-full border-4 border-primary/30 p-1'>
+                           <Image 
+                               src={'/ai9.png'} 
+                               alt='AI Image' 
+                               width={100} 
+                               height={100} 
+                               className='w-[80px] h-[80px] rounded-full object-cover' 
+                           />
+                       </div>
                     </div>
-                    <h2 className='mt-3 font-bold text-lg'>AI Recruiter</h2>
-
+                    <h2 className='mt-4 font-bold text-xl text-foreground'>AI Recruiter</h2>
+                    <p className='text-sm text-muted-foreground mt-1'>
+                        {!userActive ? '🎤 Speaking...' : '⏸️ Listening...'}
+                    </p>
                 </div>
 
-                <div className='bg-gray-100 h-[400px] rounded-lg border flex flex-col items-center justify-center'>
+                <div className='bg-card border-2 border-border h-[400px] rounded-xl shadow-lg flex flex-col items-center justify-center transition-all hover:shadow-xl'>
                     <div className='relative'>
-                    {userActive && <span className='absolute inset-0 rounded-full bg-gray-500 opacity-75 animate-ping' />}
-                    <Image src={user?.imageUrl || '/ai7.png'} alt='User Image' width={100} height={100} className='w-[60px] h-[60px] rounded-full object-cover' />
+                       {userActive && (
+                           <>
+                               <span className='absolute inset-0 rounded-full bg-green-500/30 opacity-75 animate-ping' />
+                               <span className='absolute inset-0 rounded-full bg-green-500/20 opacity-50 animate-pulse' />
+                           </>
+                       )}
+                       <div className='relative rounded-full border-4 border-muted p-1'>
+                           <Image 
+                               src={user?.imageUrl || '/ai7.png'} 
+                               alt='User Image' 
+                               width={100} 
+                               height={100} 
+                               className='w-[80px] h-[80px] rounded-full object-cover' 
+                           />
+                       </div>
                     </div>
-                    <h2 className='mt-3 font-medium text-lg'>{user?.fullName || 'User Name'}</h2>
+                    <h2 className='mt-4 font-bold text-xl text-foreground'>{user?.fullName || 'Candidate'}</h2>
+                    <p className='text-sm text-muted-foreground mt-1'>
+                        {userActive ? '🎤 Speaking...' : '⏸️ Listening...'}
+                    </p>
                 </div>
-
             </div>
 
             
-            {showStartButton && !isInterviewActive && !hasStartedCall.current && !isReloading ? (
+            {showStartButton && !isInterviewActive && !isConnecting ? (
                 <div className='flex flex-col items-center justify-center gap-5 mt-6'>
                     <button 
                         onClick={handleStartInterview}
-                        disabled={!vapiReady || !micPermissionGranted || hasStartedCall.current || isReloading}
-                        className={`px-8 py-4 bg-black hover:bg-gray-900 text-white font-bold text-xl rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3 ${
-                            !vapiReady || !micPermissionGranted || hasStartedCall.current || isReloading ? 'opacity-50 cursor-not-allowed' : ''
+                        disabled={!vapiReady || !micPermissionGranted || isConnecting}
+                        className={`px-8 py-4 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xl rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center gap-3 ${
+                            !vapiReady || !micPermissionGranted || isConnecting ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                     >
                         <Phone className='h-6 w-6' />
                         Start Interview
                     </button>
-                    <p className='text-gray-600 text-sm'>
+                    <p className='text-muted-foreground text-sm'>
                         {!micPermissionGranted 
                             ? '⚠️ Microphone permission required' 
                             : !vapiReady 
                             ? '⏳ Preparing voice interface...' 
                             : 'Click to begin your AI interview session'}
                     </p>
-                    <div className='bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4 max-w-2xl'>
-                        <p className='text-amber-800 text-sm font-medium flex items-center gap-2'>
-                            <RefreshCw className='h-4 w-4' />
-                            <span className='font-bold'>Having connection issues?</span>
+                    <div className='bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4 max-w-2xl'>
+                        <p className='text-blue-800 dark:text-blue-200 text-sm font-medium flex items-center gap-2'>
+                            <AlertCircle className='h-4 w-4' />
+                            <span className='font-bold'>First time starting?</span>
                         </p>
-                        <p className='text-amber-700 text-xs mt-1'>
-                            Simply refresh this page (F5 or Ctrl+R) and click "Start Interview" again. This usually resolves connection problems.
+                        <p className='text-blue-700 dark:text-blue-300 text-xs mt-1'>
+                            If connection fails, simply reload (F5) and try again. Works 100%!
                         </p>
                     </div>
                 </div>
             ) : isInterviewActive ? (
                 <>
                     <div className='flex items-center justify-center gap-5 mt-6'>
-                        <Mic className='h-12 w-12 p-3 bg-gray-500 text-white rounded-full cursor-pointer' />
+                        <Mic className='h-12 w-12 p-3 bg-muted hover:bg-muted/80 text-foreground rounded-full cursor-pointer transition-all' />
                         <AppDialog stopinterview={() => stopInterview()}>
-                            <Phone className='h-12 w-12 p-3 bg-red-500 text-white rounded-full cursor-pointer' />
+                            <Phone className='h-12 w-12 p-3 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full cursor-pointer transition-all' />
                         </AppDialog>
                     </div>
                     <div className='text-center mt-4'>
-                        <p className='text-gray-500 text-lg'>Interview in progress...</p>
+                        <p className='text-muted-foreground text-lg animate-pulse'>Interview in progress...</p>
                     </div>
                 </>
-            ) : isReloading ? (
+            ) : isConnecting ? (
                 <div className='flex flex-col items-center justify-center gap-5 mt-6'>
-                    <div className='flex items-center gap-3'>
-                        <RefreshCw className='h-12 w-12 text-blue-600 animate-spin' />
+                    <div className='relative'>
+                        <div className='animate-spin rounded-full h-16 w-16 border-4 border-primary/30 border-t-primary'></div>
+                        <Phone className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-primary' />
                     </div>
-                    <p className='text-gray-600 text-lg font-semibold'>Refreshing page for optimal connection...</p>
-                    <p className='text-gray-500 text-sm mt-2 max-w-md text-center'>
-                        Your interview will start automatically in a moment
+                    <p className='text-foreground text-lg font-semibold'>Connecting to interview...</p>
+                    <p className='text-muted-foreground text-sm mt-2 max-w-md text-center'>
+                        Please wait while we establish the connection
                     </p>
-                </div>
-            ) : hasStartedCall.current && !isInterviewActive ? (
-                <div className='flex flex-col items-center justify-center gap-5 mt-6'>
-                    <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600'></div>
-                    <p className='text-gray-600 text-lg'>Connecting to interview...</p>
-                    <p className='text-gray-500 text-xs mt-2 max-w-md text-center'>
-                        This may take a few seconds. Please wait...
-                    </p>
+                    <div className='bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2 max-w-md'>
+                        <p className='text-amber-800 dark:text-amber-200 text-xs text-center'>
+                            💡 If this takes too long, a reload prompt will appear automatically
+                        </p>
+                    </div>
                 </div>
             ) : null}
 
