@@ -32,13 +32,4 @@ Built with modern technologies like **Next.js, Convex, n8n, Clerk, Arcjet, and s
 
 ---
 
-## ⚙️ Architecture Overview
 
-```mermaid
-graph TD
-A[User Speaks via Mic 🎙️] --> B[Vapi API - Speech Recognition]
-B --> C[NLP Engine - Text Analysis]
-C --> D[Scoring Algorithm (Adaptive Scoring + Hash Maps)]
-D --> E[Convex DB - Store Results]
-E --> F[n8n Workflow - Feedback Delivery]
-F --> G[Recruiter Dashboard 📊]
