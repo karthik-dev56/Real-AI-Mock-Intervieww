@@ -1,6 +1,6 @@
 # 🎙️ Voice-Driven Mock Interview AI (2025)
 
-A full-stack, voice-driven AI interview platform that conducts real-time mock interviews for recruiters and candidates. Built with Next.js, Convex, n8n, Clerk, Arcjet, and shadcn/ui — leveraging Vapi speech recognition and OpenAI GPT-4o to simulate intelligent, adaptive interview sessions with automated scoring, analytics, and AI-generated feedback reports.
+An intelligent voice-AI powered interview platform that transforms the hiring process through real-time voice interactions. Experience human-like conversations powered by advanced speech recognition, natural language processing, and adaptive AI that evaluates candidates with professional-grade insights and detailed performance analytics.
 
 
 🌐 **Live Demo:** [https://real-ai-mock-intervieww.vercel.app/](https://real-ai-mock-intervieww.vercel.app/)
@@ -12,8 +12,8 @@ A full-stack, voice-driven AI interview platform that conducts real-time mock in
 
 ### 🎤 Real-Time Voice Interviews
 - **Vapi Integration:** Utilizes Vapi's Deepgram (Nova-2) transcription and PlayHT voice synthesis for natural conversations.
-- **10-Minute Time Limit:** Each interview session has a 10-minute countdown timer with automatic session termination.
-- **5-8 Dynamic Questions:** Randomly selects 5-8 questions from an AI-generated question pool tailored to job descriptions or resumes.
+- **Timed Interview Sessions:** Built-in countdown timer with automatic session management and graceful termination.
+- **Adaptive Question Selection:** Dynamically curates personalized interview questions from an AI-generated pool based on job requirements or resume analysis.
 - **Microphone Permission Handling:** Automatic prompt for microphone access with graceful error handling.
 
 ### 🧠 AI-Powered Question Generation & Evaluation
@@ -110,8 +110,8 @@ A full-stack, voice-driven AI interview platform that conducts real-time mock in
 - `lib/utils.ts`: helper utilities used across server/client.
 - `utils/route.ts`: custom server-side route helpers.
 
-## Exact environment variables (scanned from source)
-I scanned the repository source files and found the following environment-variable names used directly in the app code. Add these to `.env.local` (or your host's environment) as appropriate.
+## Exact environment variables (Local setup guide)
+ Add these to `.env.local` (or your host's environment) as appropriate.
 
 - NEXT_PUBLIC_VAPI_PUBLIC_KEY=
 - CONVEX_DEPLOY_KEY=
@@ -127,10 +127,6 @@ I scanned the repository source files and found the following environment-variab
 - IMAGEKIT_URL_PUBLIC_KEY=
 - IMAGEKIT_URL_PRIVATE_KEY=
 - ARCJET_KEY=
-
-Notes:
-- The list above is derived from the app source (non-built files). Some packages (Clerk, etc.) expose additional env vars used internally; see the package docs if you rely on Clerk (common vars include `NEXT_PUBLIC_CLERK_*` and `CLERK_*` secrets).
-- If you want, I can run a more exhaustive scan for `process.env.` across the repo and add any other matches (including built files) to this list.
 
 ## Scripts (from `package.json`)
 - `dev` — start Next.js dev server (npm run dev)
@@ -181,8 +177,5 @@ This repository doesn't include a test runner in `package.json`. Consider adding
 - Follow the code style used in the repo (TypeScript, Next.js App Router).
 - For major changes, open a draft PR and request review.
 
-## License
-Add your license here (MIT, Apache-2.0, etc.).
 
----
 
