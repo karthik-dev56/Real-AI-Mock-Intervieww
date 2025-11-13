@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
             // console.log("Received conversation:", conversation);
             
             try {
-                const ress = await axios.post("https://dev-58.app.n8n.cloud/webhook/interview-mockk", {
+                const ress = await axios.post("https://n8n-udnqctko.ap-southeast-1.clawcloudrun.com/webhook/evaluate-answer", {
                     conversation: conversation
                 });
                 // console.log("Full n8n response:", ress.data);
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
                 isPublished: true
             });
 
-            const result = await axios.post('https://dev-58.app.n8n.cloud/webhook/generate-ai-interview', {
+            const result = await axios.post('https://n8n-udnqctko.ap-southeast-1.clawcloudrun.com/webhook/ai-mock-interview', {
                 resumeUrl: uploadPdf?.url
             })
             // console.log(result.data?.output?.interview_questions);
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
                 resumeUrl: uploadPdf?.url
             });
         } else {
-            const result = await axios.post('https://dev-58.app.n8n.cloud/webhook/generate-ai-interview', {
+            const result = await axios.post('https://n8n-udnqctko.ap-southeast-1.clawcloudrun.com/webhook/ai-mock-interview', {
                 resumeUrl: null,
                 jobTitle: jobTitle,
                 jobDescription: jobDescription
