@@ -4,7 +4,7 @@ import axios from 'axios';
 export async function POST(req: NextRequest) {
     try {
         const {email,interviewLink} = await req.json();
-        const result  = await axios.post("https://rajj56.app.n8n.cloud/webhook/mail-send",{
+        const result  = await axios.post("https://tigger.app.n8n.cloud/webhook/mail-send",{
             email: email,
             interviewLink: interviewLink
         })
