@@ -1,6 +1,6 @@
 # 🎙️ Voice-Driven Mock Interview AI (2025)
 
-An intelligent voice-AI powered interview platform that transforms the hiring process through real-time voice interactions. Experience human-like conversations powered by advanced speech recognition, natural language processing, and adaptive AI that evaluates candidates with professional-grade insights and detailed performance analytics.
+LakshyaHire voice-AI powered interview platform that transforms the hiring process through real-time voice interactions. Experience human-like conversations powered by advanced speech recognition, natural language processing, and adaptive AI that evaluates candidates with professional-grade insights and detailed performance analytics.
 
 
 🌐 **Live Demo:** [https://real-ai-mock-intervieww.vercel.app/](https://real-ai-mock-intervieww.vercel.app/)
